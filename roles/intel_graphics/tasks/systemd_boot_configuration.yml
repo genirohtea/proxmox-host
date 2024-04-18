@@ -1,0 +1,19 @@
+---
+- name: "Check for the existence of the /etc/kernel/cmdline file"
+  ansible.builtin.stat:
+    path: /etc/kernel/cmdline
+  register: file_result
+
+- name: "Assert that the /etc/kernel/cmdline file exists"
+  ansible.builtin.assert:
+    that: file_result.stat.exists
+    fail_msg: "/etc/kernel/cmdline does not exist."
+
+
+# intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=7
+
+
+- name: "Refresh the systemd-boot configuration using proxmox-boot-tool"
+  ansible.builtin.command:
+    cmd: proxmox-boot-tool refresh
+  changed_when: false
