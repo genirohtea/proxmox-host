@@ -1,0 +1,5 @@
+---
+# defaults file for cpu_microcode
+amd_microcode_package: amd64-microcode
+intel_microcode_package: intel-microcode
+allow_reboot: false

@@ -1,0 +1,99 @@
+---
+- name: "Install the sysfsutils package if it is not already present"
+  ansible.builtin.apt:
+    name: sysfsutils
+    state: present
+
+- name: "Retrieve the PCI bus IDs for Intel UHD Graphics controllers"
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      lspci | grep VGA | grep 'UHD Graphics'
+  args:
+    executable: /bin/bash
+  register: uhd_graphics_controllers
+  changed_when: false
+
+- name: "Assert that there is only a single Intel UHD Graphics device present"
+  assert:
+    that: uhd_graphics_controllers.stdout_lines | length in [1, 8]
+    fail_msg: "There are multiple UHD Graphics devices. Please verify."
+
+- name: "Extract the PCIe ID from the Intel UHD Graphics controller information"
+  set_fact:
+    pcie_id: "{{ uhd_graphics_controllers.stdout_lines[0].split()[0] }}"
+
+- name: "Display the extracted PCIe ID for the Intel UHD Graphics controller"
+  debug:
+    msg: "Identified pcied as {{ pcie_id }} from {{ uhd_graphics_controllers.stdout_lines }}"
+
+- name: "Configure sysfs to enable 7 Virtual Functions (VFs) for the PCIe device"
+  ansible.builtin.lineinfile:
+    path: "{{ sysfs_conf_file }}"
+    line: "devices/pci0000:00/0000:{{ pcie_id }}/sriov_numvfs = 7"
+
+- name: "Read the current sysfs configuration from the sysfs.conf file"
+  ansible.builtin.command:
+    cmd: cat {{ sysfs_conf_file }}
+  register: sysfs_conf_content
+  changed_when: false
+
+- name: "Display the contents of the sysfs.conf file"
+  debug:
+    msg: "{{ sysfs_conf_content.stdout_lines }}"
+
+- name: "Verify that the sysfs.conf file contains the configuration for 7 VFs"
+  assert:
+    that: "'sriov_numvfs = 7' in sysfs_conf_content.stdout"
+    fail_msg: "Substring 'sriov_numvfs = 7' not found in output"
+
+
+- name: "Notify the user about the required MOK management enrollment upon reboot"
+  debug:
+    msg: "System will now reboot. User is required to Perform MOK management
+      enrollment on this boot"
+
+- name: "Reboot the Proxmox host to apply the new configurations"
+  ansible.builtin.reboot:
+    msg: "Force a reboot to use new kernel commandline"
+    connect_timeout: 5
+    reboot_timeout: 300
+    pre_reboot_delay: 5
+    post_reboot_delay: 30
+    test_command: uptime
+  when: allow_reboot
+
+
+- name: "Retrieve information about the VGA device"
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      lspci | grep VGA
+  args:
+    executable: /bin/bash
+  register: vga_check
+  changed_when: false
+
+- name: "Display the retrieved VGA device information"
+  debug:
+    msg: "{{ vga_check.stdout_lines }}"
+
+- name: "Check the dmesg log for messages from the i915 driver"
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      dmesg | grep i915
+  args:
+    executable: /bin/bash
+  register: boot_log_check
+  changed_when: false
+
+- name: "Display the i915 driver messages from the dmesg log"
+  debug:
+    msg: "{{ boot_log_check.stdout_lines }}"
+
+- name: "Assert that 7 Virtual Functions (VFs) are enabled for the Intel UHD Graphics controller"
+  ansible.builtin.assert:
+    that:
+      - "'Enabled 7 VFs' in boot_log_check.stdout"
+    fail_msg: "7 VFs are not enabled. Please troubleshoot as needed."

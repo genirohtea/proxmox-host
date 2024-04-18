@@ -1,0 +1,32 @@
+---
+- name: "Pre tasks"
+  hosts: all
+  pre_tasks:
+    - name: Verify Ansible is version 2.11 or above. (If this fails you may need to update Ansible)
+      assert:
+        that: "ansible_version.full is version_compare('2.11', '>=')"
+        msg: >
+          "Ansible is out of date."
+
+    - name: "Install the sudo form of root access"
+      ansible.builtin.apt:
+        package: sudo
+        state: present
+      become: true
+      become_method: ansible.builtin.su # Default proxmox
+
+
+- name: "Install the various proxmox roles"
+  hosts: all
+  roles:
+    - role: disable_subscription_nag
+      tags: disable_subscription_nag
+    - role: fix_package_repos
+      tags: fix_package_repos
+    - role: remove_kernels
+      tags: remove_kernels
+      when: "'pve' in hostvars[inventory_hostname].ansible_kernel"
+    - role: cpu_microcode
+      tags: cpu_microcode
+    - role: intel_graphics
+      tags: intel_graphics
