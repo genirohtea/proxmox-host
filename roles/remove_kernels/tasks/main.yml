@@ -1,0 +1,29 @@
+---
+# tasks file for remove_kernels
+- name: "Get the current running kernel"
+  ansible.builtin.command: uname -r
+  register: current_kernel
+  changed_when: false
+
+- name: "Show current kernel"
+  ansible.builtin.debug:
+    msg: "Current kernel in use: {{ current_kernel.stdout }}"
+
+- name: "Get the list of available kernels excluding currently running kernel"
+  ansible.builtin.shell: >-
+    set -Eeuo pipefail;
+    dpkg --list | grep 'kernel-.*-pve' | awk '{print $2}' | grep --invert-match '{{ current_kernel.stdout }}' | sort -V
+  register: available_kernels
+  changed_when: false
+  args:
+    executable: /bin/bash
+
+- name: "Remove the available kernels"
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: absent
+  with_items: "{{ available_kernels.stdout_lines }}"
+
+- name: "Show removed kernels"
+  ansible.builtin.debug:
+    msg: "Removed kernels: {{ available_kernels.stdout }}"

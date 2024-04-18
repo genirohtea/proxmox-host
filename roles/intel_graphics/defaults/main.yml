@@ -1,0 +1,10 @@
+---
+# defaults file for intel_graphics
+grub_file: /etc/default/grub
+has_google_coral_pc: false
+sysfs_conf_file: /etc/sysfs.conf
+pcie_bus_number: 00:02.0
+install_intel_vtd: false
+
+# Apr 7 2024 SHA
+i915_sriov_dkms_git_sha: ffc23727f106995d89bc7ad32df4f1a3809ee737

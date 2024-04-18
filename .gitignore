@@ -1,0 +1,30 @@
+# IDE related cache/leak files
+.idea
+.vscode/**
+.obsidian
+.obsidian/**
+
+# Local related cache/leak files
+.DS_Store
+**/.envrc
+**/.env
+*.log
+temp/
+build/
+
+megalinter-reports
+
+# Ansible related cache/leak files
+ansible.cfg
+
+# Kubernetes related cache/leak files
+kubeconfig
+
+# Terraform related cache/leak files
+**/.terraform
+**/.terraform.lock.hcl
+**/.terraform.tfstate.*
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/*.auto.tfvars
+.aider*
