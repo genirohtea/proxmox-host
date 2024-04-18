@@ -1,0 +1,4 @@
+---
+# https://stackoverflow.com/questions/32429259/ansible-fails-with-bin-sh-1-usr-bin-python-not-found
+# Fixes `/bin/sh: /usr/bin/python: No such file or directory`
+ansible_python_interpreter: /usr/bin/python3

@@ -1,0 +1,27 @@
+---
+- name: "Create a backup of the GRUB configuration file"
+  ansible.builtin.copy:
+    src: "{{ grub_file }}"
+    dest: "{{ grub_file }}.bak"
+    mode: preserve
+    remote_src: true
+
+- name: "Update the GRUB configuration file with the specified kernel parameters"
+  ansible.builtin.lineinfile:
+    path: "{{ grub_file }}"
+    regexp: '^GRUB_CMDLINE_LINUX_DEFAULT'
+    line: 'GRUB_CMDLINE_LINUX_DEFAULT="{{ grub_command }}"'
+  vars:
+    grub_command: >-
+      quiet intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=7
+      {{ "initcall_blacklist=sysfb_init pcie_aspm=off" if has_google_coral_pc else "" }}
+
+- name: "Execute the update-grub command to apply the new GRUB configuration"
+  ansible.builtin.command:
+    cmd: update-grub
+  changed_when: false
+
+- name: "Update the initramfs for all kernels"
+  ansible.builtin.command:
+    cmd: update-initramfs -u -k all
+  changed_when: false

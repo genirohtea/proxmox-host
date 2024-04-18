@@ -1,0 +1,86 @@
+---
+# tasks file for fix_package_repos
+- name: "Check if file exists"
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list.d/pve-enterprise.list
+  register: file_status
+
+- name: "Print status of file"
+  ansible.builtin.debug:
+    msg: "The file /etc/apt/sources.list.d/pve-enterprise.list exists"
+  when: file_status.stat.exists
+
+- name: "Disable enterprise apt sources list"
+  ansible.builtin.lineinfile:
+    path: '/etc/apt/sources.list.d/pve-enterprise.list'
+    search_string: 'deb https://enterprise.proxmox.com/debian/pve {{ ansible_distribution_release }} pve-enterprise'
+    line: '# deb https://enterprise.proxmox.com/debian/pve {{ ansible_distribution_release }} pve-enterprise'
+  when: file_status.stat.exists
+
+- name: "Check if file exists"
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list.d/ceph.list
+  register: file_status
+
+- name: "Print status of file"
+  ansible.builtin.debug:
+    msg: "The file /etc/apt/sources.list.d/ceph.list exists"
+  when: file_status.stat.exists
+
+- name: "Disable enterprise ceph sources list"
+  ansible.builtin.lineinfile:
+    path: '/etc/apt/sources.list.d/ceph.list'
+    search_string: 'deb https://enterprise.proxmox.com/debian/ceph-quincy bookworm enterprise'
+    line: '# deb https://enterprise.proxmox.com/debian/ceph-quincy {{ ansible_distribution_release }} enterprise'
+  when: file_status.stat.exists
+
+- name: "Check if file exists"
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list
+  register: file_status
+
+- name: "Print status of file"
+  ansible.builtin.debug:
+    msg: "The file /etc/apt/sources.list exists"
+  when: file_status.stat.exists
+
+- name: "Enable pve-no-subscription repository"
+  ansible.builtin.lineinfile:
+    dest: /etc/apt/sources.list
+    state: present
+    search_string: 'deb http://download.proxmox.com/debian {{ ansible_distribution_release }} pve-no-subscription'
+    line: 'deb http://download.proxmox.com/debian {{ ansible_distribution_release }} pve-no-subscription'
+  when: file_status.stat.exists
+
+- name: "Check if file exists"
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list
+  register: file_status
+
+- name: "Print status of file"
+  ansible.builtin.debug:
+    msg: "The file /etc/apt/sources.list exists"
+  when: file_status.stat.exists
+
+- name: "Ensure debian default sources are correct"
+  ansible.builtin.lineinfile:
+    dest: /etc/apt/sources.list
+    state: present
+    regexp: |
+      ^deb {{ item.uri }} \w+{{ item.repo }} main contrib
+    line: 'deb {{ item.uri }} {{ ansible_distribution_release }}{{ item.repo }} main contrib'
+  with_items:
+    - {uri: "http://ftp.us.debian.org/debian", repo: ""}
+    - {uri: "http://ftp.us.debian.org/debian", repo: "-updates"}
+    - {uri: "http://security.debian.org", repo: "-security"}
+  when: file_status.stat.exists
+
+
+- name: "Update package cache (debian)"
+  ansible.builtin.apt:
+    update_cache: true
+    autoclean: true
+    autoremove: true
+    purge: true
+  become: true
+  become_method: ansible.builtin.su # Required since docker root doesnt like sudo
