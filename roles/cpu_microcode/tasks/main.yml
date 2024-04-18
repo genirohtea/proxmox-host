@@ -1,0 +1,66 @@
+---
+
+- name: "Current ansible processor"
+  ansible.builtin.debug:
+    msg: "{{ ansible_processor }}"
+
+- name: "Set the vendor name"
+  ansible.builtin.set_fact:
+    cpu_vendor: "{{ ansible_processor[1] }}"
+
+- name: "Current processor vendor name"
+  ansible.builtin.debug:
+    msg: "{{ cpu_vendor }}"
+
+- name: "Add debian repo package for intel"
+  apt_repository:
+    repo: deb http://deb.debian.org/debian {{ ansible_distribution_release }} main contrib non-free-firmware
+    state: present
+  become: true
+  when: "'Intel' in cpu_vendor"
+
+- name: "Add debian repo package for intel"
+  apt_repository:
+    repo: deb http://security.debian.org/debian-security {{ ansible_distribution_release }}-security main contrib non-free-firmware  # yamllint disable-line rule:line-length
+    state: present
+  become: true
+  when: "'Intel' in cpu_vendor"
+
+- name: "Add debian repo package for intel"
+  apt_repository:
+    repo: deb http://deb.debian.org/debian {{ ansible_distribution_release }}-updates main contrib non-free-firmware
+    state: present
+  become: true
+  when: "'Intel' in cpu_vendor"
+
+- name: "Update package cache (apt)"
+  apt:
+    update_cache: true
+  become: true
+  become_method: ansible.builtin.su # Required since docker root doesnt like sudo
+
+- name: "Install package for intel"
+  package:
+    name: "{{ intel_microcode_package }}"
+    state: present
+  when: "'Intel' in cpu_vendor"
+  become: true
+  notify: "Restart to install microcode"
+
+- name: "Install package for amd"
+  package:
+    name: "{{ amd_microcode_package }}"
+    state: present
+  when: "'AMD' in cpu_vendor"
+  become: true
+  notify: "Restart to install microcode"
+  become_method: ansible.builtin.su
+
+- name: "Check Microcode version"
+  ansible.builtin.command: cat /proc/cpuinfo
+  register: microcode_version
+  changed_when: false
+
+- name: "Current microcode version"
+  ansible.builtin.debug:
+    msg: "{{ microcode_version.stdout }} Expect 0x12 after install (0xe by default on N100)"

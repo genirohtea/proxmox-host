@@ -1,0 +1,10 @@
+---
+# tasks file for disable_subscription_nag
+
+# Disable the scubscription nag
+
+- name: "Install pve-fake-subscription"
+  ansible.builtin.apt:
+    deb: https://github.com/Jamesits/pve-fake-subscription/releases/download/v0.0.9/pve-fake-subscription_0.0.9+git-1_all.deb  # yamllint disable-line rule:line-length
+  become: true
+  become_method: ansible.builtin.su

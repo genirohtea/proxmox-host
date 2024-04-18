@@ -1,0 +1,6 @@
+# Dont be naughty and commit private SSH keys to git
+# Ignore all files without extensions (private keys)
+*
+!/**/
+!*.*
+*.enc
