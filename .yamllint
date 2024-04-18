@@ -1,0 +1,17 @@
+---
+extends: default
+
+rules:
+  truthy:
+    allowed-values: ['true', 'false']
+  line-length:
+    max: 120
+    level: warning
+  braces: # https://github.com/ansible/ansible-lint/issues/2076
+    min-spaces-inside: 0
+    max-spaces-inside: 0
+  comments:
+    min-spaces-from-content: 1 # Used to follow prettier standard: https://github.com/prettier/prettier/pull/10926
+ignore:
+  - galaxy.yml
+  - .github/
