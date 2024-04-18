@@ -1,0 +1,35 @@
+---
+# Configuration file for MegaLinter
+# See all available variables at https://megalinter.io/configuration/ and in linters documentation
+
+APPLY_FIXES: all  # all, none, or list of linter keys
+# ENABLE: # If you use ENABLE variable, all other languages/formats/tooling-formats will be disabled by default
+# ENABLE_LINTERS: # If you use ENABLE_LINTERS variable, all other linters will be disabled by default
+DISABLE:
+  - COPYPASTE  # Comment to enable checks of excessive copy-pastes
+DISABLE_LINTERS:
+  - REPOSITORY_DEVSKIM
+  - REPOSITORY_KICS
+  - PYTHON_PYRIGHT
+  - SPELL_CSPELL
+  - SPELL_LYCHEE
+  - REPOSITORY_GRYPE  # Renable if you have container images
+SHOW_ELAPSED_TIME: true
+FILEIO_REPORTER: false
+VALIDATE_ALL_CODEBASE: true
+# DISABLE_ERRORS: true # Uncomment if you want MegaLinter to detect errors but not block CI to pass
+
+# ADDITIONAL_EXCLUDED_DIRECTORIES does not work currently
+FILTER_REGEX_EXCLUDE: (\.github)
+
+ANSIBLE_ANSIBLE_LINT_CONFIG_FILE: LINTER_DEFAULT
+
+# Gitleaks sees some hashes as aws-access-tokens even though they are not
+# Keep the linter as warnings though because it does find other api key leaks
+REPOSITORY_GITLEAKS_DISABLE_ERRORS: true
+
+# Needed because trufflehog picks up a PAT from .git/config
+#   in Github Actions due to https://github.com/trufflesecurity/trufflehog/issues/2515
+REPOSITORY_TRUFFLEHOG_ARGUMENTS: --exclude-paths=".git/config"
+YAML_V8R_FILTER_REGEX_EXCLUDE: (test\.yml\|handlers)
+REPOSITORY_CHECKOV_ARGUMENTS: --skip-check CKV2_GHA_1

@@ -1,0 +1,16 @@
+---
+driver:
+  name: docker
+platforms:
+  - name: instance
+    pre_build_image: true
+    image: python:3.12.2-bookworm # Proxmox 8.1 is currently based on bookworm
+    # Proxmox images doesnt like testing on an ARM base platform
+    # image: makedie/proxmox_ve:8.0.4
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_VERBOSITY: 1
+  inventory:
+    links:
+      group_vars: ../../group_vars

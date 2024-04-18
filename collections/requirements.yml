@@ -1,0 +1,6 @@
+---
+# Installed using ansible-galaxy collection -r requirements.txt
+collections:
+  - name: ansible.utils
+  - name: community.general
+  - name: ansible.posix

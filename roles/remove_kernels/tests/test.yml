@@ -1,0 +1,6 @@
+---
+- name: Run role test
+  hosts: localhost
+  remote_user: root
+  roles:
+    - remove_kernels

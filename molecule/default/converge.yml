@@ -1,0 +1,4 @@
+---
+
+- name: Converge
+  ansible.builtin.import_playbook: ../../main.yml
