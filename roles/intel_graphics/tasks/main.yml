@@ -1,0 +1,48 @@
+---
+
+# tasks file for intel_graphics
+- name: "Install Intel Graphics VT-d support"
+  when: install_intel_vtd and allow_reboot
+  become: true
+  block:
+    - name: "Verify that the bootloader type is either GRUB or systemd"
+      assert:
+        that:
+          - hostvars[inventory_hostname].bootloader_type is defined
+          - hostvars[inventory_hostname].bootloader_type in ['grub']
+        fail_msg: "bootloader_type must be 'grub' systemd is currently unsupported. {{ hostvars }}"
+
+    - name: "Retrieve the version of the currently running kernel"
+      ansible.builtin.command: uname -r
+      register: kernel_version
+      changed_when: false
+
+    - name: "Strip the '-pve' suffix from the kernel version"
+      ansible.builtin.set_fact:
+        kernel_version_num: "{{ kernel_version.stdout | replace('-pve', '') }}"
+
+    - name: "Set kernel version"
+      ansible.builtin.set_fact:
+        kernel_version: "{{ kernel_version.stdout }}"
+
+    - name: "Display the kernel version number"
+      ansible.builtin.debug:
+        var: kernel_version_num
+
+    - name: "Configure the kernel for Intel Graphics support"
+      ansible.builtin.import_tasks: kernel_configuration.yml
+    - name: "Configure the GRUB bootloader for Intel Graphics support"
+      ansible.builtin.import_tasks: grub_configuration.yml
+      when: hostvars[inventory_hostname].bootloader_type == "grub"
+    - name: "Configure the systemd bootloader for Intel Graphics support"
+      ansible.builtin.import_tasks: systemd_boot_configuration.yml
+      when: hostvars[inventory_hostname].bootloader_type == 'systemd'
+    - name: "Validate the PCI configuration for Intel Graphics"
+      ansible.builtin.import_tasks: pci_configuration.yml
+    - name: "Pin the DKMS compiled kernel"
+      ansible.builtin.import_tasks: kernel_pinning.yml
+
+  rescue:
+    - name: "Intel Graphics VT-d role failed"
+      ansible.builtin.set_fact:
+        task_failed: true
