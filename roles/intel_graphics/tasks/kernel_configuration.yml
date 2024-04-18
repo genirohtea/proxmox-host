@@ -1,0 +1,138 @@
+---
+
+- name: "Update the APT cache and install required packages"
+  ansible.builtin.apt:
+    update_cache: true
+    pkg:
+      - git
+      - pve-headers
+      - mokutil
+    state: present
+
+
+- name: "Delete the DKMS folder if it exists"
+  ansible.builtin.file:
+    path: "/root/i915-sriov-dkms"
+    state: absent
+
+- name: "Remove DKMS folders for i915-sriov-dkms"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "/var/lib/dkms/i915-sriov-dkms"
+    - "/usr/src/i915-sriov-dkms-{{ kernel_version_num }}"
+
+- name: "Clone the i915-sriov-dkms Git repository"
+  ansible.builtin.git:
+    # TODO: Replace with original repo after https://github.com/strongtz/i915-sriov-dkms/pull/152
+    # Also replace the SHA
+    repo: https://github.com/makazeu/i915-sriov-dkms.git
+    dest: /root/i915-sriov-dkms
+    version: "{{ i915_sriov_dkms_git_sha }}"
+
+- name: "Create a backup of the dkms.conf file"
+  ansible.builtin.copy:
+    src: /root/i915-sriov-dkms/dkms.conf
+    dest: /root/i915-sriov-dkms/dkms.conf.bak
+    mode: preserve
+    remote_src: true
+
+- name: "Substitute the @_PKGBASE@ placeholder in dkms.conf with the actual package base"
+  ansible.builtin.replace:
+    path: /root/i915-sriov-dkms/dkms.conf
+    regexp: '"@_PKGBASE@"'
+    replace: '"i915-sriov-dkms"'
+
+- name: "Substitute the @PKGVER@ placeholder in dkms.conf with the kernel version number"
+  replace:
+    path: /root/i915-sriov-dkms/dkms.conf
+    regexp: '"@PKGVER@"'
+    replace: "{{ kernel_version_num }}"
+
+- name: "Remove the '-j$(nproc)' option from the dkms.conf file"
+  replace:
+    path: /root/i915-sriov-dkms/dkms.conf
+    regexp: ' -j$(nproc)'
+    replace: ''
+
+- name: "Output the contents of the dkms.conf file"
+  ansible.builtin.command: cat /root/i915-sriov-dkms/dkms.conf
+  register: dkms_conf_content
+  changed_when: false
+
+- name: "Print the contents of the dkms.conf file"
+  debug:
+    msg: "{{ dkms_conf_content.stdout_lines }}"
+
+- name: "Uninstall the DKMS package"
+  ansible.builtin.apt:
+    name: dkms
+    state: absent
+
+- name: "Reinstall the DKMS package"
+  ansible.builtin.apt:
+    name: dkms
+    state: present
+
+- name: "Execute the 'dkms add' command for the i915-sriov-dkms module"
+  ansible.builtin.command:
+    chdir: /root/i915-sriov-dkms
+    cmd: dkms add .
+    creates: "/usr/src/i915-sriov-dkms-{{ kernel_version_num }}"
+
+- name: "Check the status of DKMS modules"
+  ansible.builtin.command:
+    cmd: dkms status
+    chdir: "/usr/src/i915-sriov-dkms-{{ kernel_version_num }}"
+  register: dkms_status
+  changed_when: false
+
+- name: "Display the current DKMS module status"
+  debug:
+    msg: "{{ dkms_status.stdout }}"
+
+
+- name: "Execute the 'dkms install' command for the i915-sriov-dkms module"
+  ansible.builtin.command:
+    cmd: >
+      dkms install -m i915-sriov-dkms -v {{ kernel_version_num }} -k {{ kernel_version }} --force -j 1
+    chdir: "/usr/src/i915-sriov-dkms-{{ kernel_version_num }}"
+  changed_when: false
+
+- name: "Check the status of DKMS modules"
+  command:
+    cmd: dkms status
+    chdir: "/usr/src/i915-sriov-dkms-{{ kernel_version_num }}"
+  register: dkms_status
+  changed_when: false
+
+- name: "Display the current DKMS module status"
+  debug:
+    msg: "{{ dkms_status.stdout }}"
+
+- name: "Determine the current status of Secure Boot"
+  ansible.builtin.command:
+    cmd: mokutil --sb-state
+  register: secure_boot_status
+  changed_when: false
+
+- name: "Output the Secure Boot status"
+  debug:
+    msg: "{{ secure_boot_status.stdout }}"
+
+- name: "Enroll the Secure Boot signing keys using mokutil"
+  command:
+    cmd: mokutil --import /var/lib/dkms/mok.pub --root-pw
+  when: '"SecureBoot enabled" in secure_boot_status.stdout'
+  changed_when: false
+
+- name: "Reboot the Proxmox host to apply changes"
+  ansible.builtin.reboot:
+    msg: "Force a reboot to allow the dkms kernel module to be used"
+    connect_timeout: 5
+    reboot_timeout: 300
+    pre_reboot_delay: 5
+    post_reboot_delay: 30
+    test_command: 'uptime'
+  when: allow_reboot
