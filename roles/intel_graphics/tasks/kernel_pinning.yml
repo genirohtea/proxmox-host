@@ -1,0 +1,6 @@
+---
+
+- name: "Pin the current kernel version to prevent it from being updated"
+  ansible.builtin.command:
+    cmd: proxmox-boot-tool kernel pin {{ kernel_version }}
+  changed_when: false
