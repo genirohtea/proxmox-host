@@ -1,5 +1,4 @@
 ---
-
 - name: "Update the APT cache and install required packages"
   ansible.builtin.apt:
     update_cache: true
@@ -8,7 +7,6 @@
       - pve-headers
       - mokutil
     state: present
-
 
 - name: "Delete the DKMS folder if it exists"
   ansible.builtin.file:
@@ -51,8 +49,8 @@
 - name: "Remove the '-j$(nproc)' option from the dkms.conf file"
   replace:
     path: /root/i915-sriov-dkms/dkms.conf
-    regexp: ' -j$(nproc)'
-    replace: ''
+    regexp: " -j$(nproc)"
+    replace: ""
 
 - name: "Output the contents of the dkms.conf file"
   ansible.builtin.command: cat /root/i915-sriov-dkms/dkms.conf
@@ -89,7 +87,6 @@
 - name: "Display the current DKMS module status"
   debug:
     msg: "{{ dkms_status.stdout }}"
-
 
 - name: "Execute the 'dkms install' command for the i915-sriov-dkms module"
   ansible.builtin.command:
@@ -132,5 +129,5 @@
     reboot_timeout: 300
     pre_reboot_delay: 5
     post_reboot_delay: 30
-    test_command: 'uptime'
+    test_command: "uptime"
   when: allow_reboot

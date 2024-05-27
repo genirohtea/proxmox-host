@@ -6,7 +6,6 @@
     - ipmi_fan_control is defined
     - ipmi_fan_control
   block:
-
     # https://www.truenas.com/community/resources/how-to-change-ipmi-sensor-thresholds-using-ipmitool.35/
     # https://www.truenas.com/community/threads/how-to-change-ipmi-sensor-thresholds-using-ipmitool.53620/page-8
     # https://www.reddit.com/r/supermicro/comments/16dtqwv/need_ipmi_fan_speed_help/
@@ -16,7 +15,6 @@
     # Zone 0 (FAN1-4)
     # FANB == Middle Wall (iPPC 3000)
     # FANA == Front Wall (iPPC 2000)
-
 
     # # IPMI can be remotely accessed
     # # Supermicro default user is "ADMIN" with the password randomized (and notated on the motherboard)

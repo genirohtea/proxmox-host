@@ -1,5 +1,4 @@
 ---
-
 # tasks file for intel_graphics
 - name: "Install Intel Graphics VT-d support"
   when: install_intel_vtd and allow_reboot
@@ -32,7 +31,6 @@
       ansible.builtin.debug:
         var: kernel_version_num
 
-
     - name: "Configure the kernel for Intel Graphics support"
       ansible.builtin.import_tasks: kernel_configuration.yml
     - name: "Configure the GRUB bootloader for Intel Graphics support"
@@ -43,7 +41,6 @@
       when: hostvars[inventory_hostname].bootloader_type == 'systemd'
     - name: "Validate the PCI configuration for Intel Graphics"
       ansible.builtin.import_tasks: pci_configuration.yml
-
 
   rescue:
     - name: "Intel Graphics VT-d role failed"

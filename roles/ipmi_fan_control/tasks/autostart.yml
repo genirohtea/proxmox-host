@@ -7,7 +7,7 @@
         dest: /etc/systemd/system/ipmi_fan_control.service
         owner: root
         group: root
-        mode: '0600'
+        mode: "0600"
 
     - name: Reload systemd to recognize the new service
       become: true
