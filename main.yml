@@ -23,3 +23,5 @@
       tags: cpu_microcode
     - role: intel_graphics
       tags: intel_graphics
+    - role: ipmi_fan_control
+      tags: ipmi_fan_control

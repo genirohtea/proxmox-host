@@ -1,0 +1,29 @@
+---
+- name: "Utilize IPMI for fan control"
+  block:
+    - name: Create systemd service file for fan control script
+      ansible.builtin.template:
+        src: templates/ipmi_fan_control.service.j2
+        dest: /etc/systemd/system/ipmi_fan_control.service
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Reload systemd to recognize the new service
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Enable fan control service to start on boot
+      become: true
+      ansible.builtin.systemd:
+        name: ipmi_fan_control
+        enabled: true
+
+    # Check using `journalctl -u ipmi_fan_control.service`
+    - name: Start fan control service
+      become: true
+      ansible.builtin.systemd:
+        name: ipmi_fan_control
+        state: started
+      register: fan_control_service_status

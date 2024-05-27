@@ -1,0 +1,12 @@
+[Unit]
+Description=Fan Control Service
+After=network.target
+
+[Service]
+ExecStart=/bin/bash /etc/ipmi_fan_control/scripts/spinpid2.sh
+ExecStartPost=/bin/bash -c 'if ! pgrep -f /etc/ipmi_fan_control/scripts/spinpid2.sh > /dev/null; then logger -p user.error "Fan control script is not running"; fi'
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
