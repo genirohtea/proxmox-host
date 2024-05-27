@@ -25,9 +25,7 @@
 
 - name: "Clone the i915-sriov-dkms Git repository"
   ansible.builtin.git:
-    # TODO: Replace with original repo after https://github.com/strongtz/i915-sriov-dkms/pull/152
-    # Also replace the SHA
-    repo: https://github.com/makazeu/i915-sriov-dkms.git
+    repo: https://github.com/strongtz/i915-sriov-dkms
     dest: /root/i915-sriov-dkms
     version: "{{ i915_sriov_dkms_git_sha }}"
 

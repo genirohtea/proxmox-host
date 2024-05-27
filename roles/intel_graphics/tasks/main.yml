@@ -12,6 +12,9 @@
           - hostvars[inventory_hostname].bootloader_type in ['grub']
         fail_msg: "bootloader_type must be 'grub' systemd is currently unsupported. {{ hostvars }}"
 
+    - name: "Pin the required DKMS compatible kernel"
+      ansible.builtin.import_tasks: kernel_pinning.yml
+
     - name: "Retrieve the version of the currently running kernel"
       ansible.builtin.command: uname -r
       register: kernel_version
@@ -29,6 +32,7 @@
       ansible.builtin.debug:
         var: kernel_version_num
 
+
     - name: "Configure the kernel for Intel Graphics support"
       ansible.builtin.import_tasks: kernel_configuration.yml
     - name: "Configure the GRUB bootloader for Intel Graphics support"
@@ -39,8 +43,7 @@
       when: hostvars[inventory_hostname].bootloader_type == 'systemd'
     - name: "Validate the PCI configuration for Intel Graphics"
       ansible.builtin.import_tasks: pci_configuration.yml
-    - name: "Pin the DKMS compiled kernel"
-      ansible.builtin.import_tasks: kernel_pinning.yml
+
 
   rescue:
     - name: "Intel Graphics VT-d role failed"
