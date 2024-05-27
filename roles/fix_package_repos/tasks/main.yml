@@ -82,4 +82,13 @@
     autoclean: true
     autoremove: true
     purge: true
+
+
+# Needs to be done after package repos are set-up correctly
+- name: "Install the sudo form of root access"
+  ansible.builtin.apt:
+    package: sudo
+    state: present
+    update_cache: true
   become: true
+  become_method: ansible.builtin.su # Default proxmox
