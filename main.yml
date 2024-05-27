@@ -8,13 +8,6 @@
         msg: >
           "Ansible is out of date."
 
-    - name: "Install the sudo form of root access"
-      ansible.builtin.apt:
-        package: sudo
-        state: present
-      become: true
-      become_method: ansible.builtin.su # Default proxmox
-
 
 - name: "Install the various proxmox roles"
   hosts: all
