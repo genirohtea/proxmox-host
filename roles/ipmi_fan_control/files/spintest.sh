@@ -28,13 +28,13 @@ IPMITOOL=$(which ipmitool)
 ############################################################
 
 function print_header {
-   echo
-   DATE=$(date +"%A, %b %d, %H:%M:%S")
-   echo "$DATE"
+  echo
+  DATE=$(date +"%A, %b %d, %H:%M:%S")
+  echo "$DATE"
 
-   printf "$SPACES%44s %29s \n" "___Duty%___" "Curr_RPM________________________"
+  printf "$SPACES%44s %29s \n" "___Duty%___" "Curr_RPM________________________"
 
-   printf "%28s %9s %5s %5s %5s %5s %5s %5s %5s \n" "MODE" "Zone0" "Zone1" "FANA" "FANB" "FAN1" "FAN2" "FAN3" "FAN4"
+  printf "%28s %9s %5s %5s %5s %5s %5s %5s %5s \n" "MODE" "Zone0" "Zone1" "FANA" "FANB" "FAN1" "FAN2" "FAN3" "FAN4"
 }
 
 #################################################
@@ -42,34 +42,34 @@ function print_header {
 #################################################
 function read_fan_data {
 
-   # Read duty cycles, convert to decimal.
-   # Some boards provide inaccurate duty cycle.  In that case,
-   # comment out these 4 lines and we assume it is what we set.
-   DUTY_0=$($IPMITOOL raw 0x30 0x70 0x66 0 0) # in hex with leading space
-   DUTY_0=$((0x${DUTY_0// /}))   # strip leading space and decimate
-   DUTY_1=$($IPMITOOL raw 0x30 0x70 0x66 0 1)
-   DUTY_1=$((0x${DUTY_1// /}))   # strip leading space and decimate
+  # Read duty cycles, convert to decimal.
+  # Some boards provide inaccurate duty cycle.  In that case,
+  # comment out these 4 lines and we assume it is what we set.
+  DUTY_0=$($IPMITOOL raw 0x30 0x70 0x66 0 0) # in hex with leading space
+  DUTY_0=$((0x${DUTY_0// /}))                # strip leading space and decimate
+  DUTY_1=$($IPMITOOL raw 0x30 0x70 0x66 0 1)
+  DUTY_1=$((0x${DUTY_1// /})) # strip leading space and decimate
 
-   # Read fan mode, convert to decimal, get text equivalent.
-   MODE=$($IPMITOOL raw 0x30 0x45 0) # in hex with leading space
-   MODE=$((0x${MODE// /}))   # strip leading space and decimate
-   # Text for mode
-   case $MODE in
-      0) MODEt="Standard" ;;
-      1) MODEt="Full" ;;
-      2) MODEt="Optimal" ;;
-      4) MODEt="HeavyIO" ;;
-   esac
+  # Read fan mode, convert to decimal, get text equivalent.
+  MODE=$($IPMITOOL raw 0x30 0x45 0) # in hex with leading space
+  MODE=$((0x${MODE// /}))           # strip leading space and decimate
+  # Text for mode
+  case $MODE in
+  0) MODEt="Standard" ;;
+  1) MODEt="Full" ;;
+  2) MODEt="Optimal" ;;
+  4) MODEt="HeavyIO" ;;
+  esac
 
-   # Get reported fan speed in RPM from sensor data repository.
-   # Takes the pertinent FAN line, then 3 to 5 consecutive digits
-   SDR=$($IPMITOOL sdr)
-   FAN1=$(echo "$SDR" | grep "FAN1" | grep -Eo '[0-9]{3,5}')
-   FAN2=$(echo "$SDR" | grep "FAN2" | grep -Eo '[0-9]{3,5}')
-   FAN3=$(echo "$SDR" | grep "FAN3" | grep -Eo '[0-9]{3,5}')
-   FAN4=$(echo "$SDR" | grep "FAN4" | grep -Eo '[0-9]{3,5}')
-   FANA=$(echo "$SDR" | grep "FANA" | grep -Eo '[0-9]{3,5}')
-   FANB=$(echo "$SDR" | grep "FANB" | grep -Eo '[0-9]{3,5}')
+  # Get reported fan speed in RPM from sensor data repository.
+  # Takes the pertinent FAN line, then 3 to 5 consecutive digits
+  SDR=$($IPMITOOL sdr)
+  FAN1=$(echo "$SDR" | grep "FAN1" | grep -Eo '[0-9]{3,5}')
+  FAN2=$(echo "$SDR" | grep "FAN2" | grep -Eo '[0-9]{3,5}')
+  FAN3=$(echo "$SDR" | grep "FAN3" | grep -Eo '[0-9]{3,5}')
+  FAN4=$(echo "$SDR" | grep "FAN4" | grep -Eo '[0-9]{3,5}')
+  FANA=$(echo "$SDR" | grep "FANA" | grep -Eo '[0-9]{3,5}')
+  FANB=$(echo "$SDR" | grep "FANB" | grep -Eo '[0-9]{3,5}')
 }
 
 ##############################################
@@ -77,14 +77,14 @@ function read_fan_data {
 #
 ##############################################
 function print_line {
-   printf "%-23s %-8s %5s %5s %5s %5s %5s %5s %5s %5s \n"  "$COND" "$MODEt" "${DUTY_0:----}" "${DUTY_1:----}" "${FANA:----}" "${FANB:----}" "${FAN1:----}" "${FAN2:----}" "${FAN3:----}" "${FAN4:----}"
+  printf "%-23s %-8s %5s %5s %5s %5s %5s %5s %5s %5s \n" "$COND" "$MODEt" "${DUTY_0:----}" "${DUTY_1:----}" "${FANA:----}" "${FANB:----}" "${FAN1:----}" "${FAN2:----}" "${FAN3:----}" "${FAN4:----}"
 
 }
 
 #####################################################
 # Main section
 #####################################################
-read_fan_data  # Get before script changes things
+read_fan_data # Get before script changes things
 MODEorig=$MODE
 
 echo
@@ -111,7 +111,7 @@ echo
 echo "Are you ready to begin? (y/n)"
 read -r START
 if [ "$START" != "y" ]; then
-   exit
+  exit
 fi
 
 print_header
@@ -132,15 +132,16 @@ sleep 1
 i=100
 
 while [ $i -gt 5 ]; do
-   DUTY_0=$i; DUTY_1=$i
-   echo -n "$($IPMITOOL raw 0x30 0x70 0x66 1 0 $i)"
-   sleep 1
-   echo -n "$($IPMITOOL raw 0x30 0x70 0x66 1 1 $i)"
-   sleep 5
-   read_fan_data
-   COND="Duty cycle $i%"
-   print_line
-   ((i=i-5)) || true
+  DUTY_0=$i
+  DUTY_1=$i
+  echo -n "$($IPMITOOL raw 0x30 0x70 0x66 1 0 $i)"
+  sleep 1
+  echo -n "$($IPMITOOL raw 0x30 0x70 0x66 1 1 $i)"
+  sleep 5
+  read_fan_data
+  COND="Duty cycle $i%"
+  print_line
+  ((i = i - 5)) || true
 done
 
 # Leave it in previous mode and walk away

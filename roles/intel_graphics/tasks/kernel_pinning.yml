@@ -16,7 +16,6 @@
   ansible.builtin.debug:
     var: kernel_version_num
 
-
 - name: "Install the latest DKMS compatible kernel headers first"
   ansible.builtin.apt:
     update_cache: true

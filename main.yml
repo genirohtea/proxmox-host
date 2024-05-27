@@ -8,7 +8,6 @@
         msg: >
           "Ansible is out of date."
 
-
 - name: "Install the various proxmox roles"
   hosts: all
   roles:
