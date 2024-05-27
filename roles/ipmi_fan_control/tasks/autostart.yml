@@ -27,3 +27,7 @@
         name: ipmi_fan_control
         state: started
       register: fan_control_service_status
+  rescue:
+    - name: "IPMI autostart install failed"
+      ansible.builtin.set_fact:
+        task_failed: true
