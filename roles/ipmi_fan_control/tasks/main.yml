@@ -1,0 +1,99 @@
+---
+# tasks file for ipmi_fan_control
+
+- name: "Utilize IPMI for fan control"
+  when:
+    - ipmi_fan_control is defined
+    - ipmi_fan_control
+  block:
+
+    # https://www.truenas.com/community/resources/how-to-change-ipmi-sensor-thresholds-using-ipmitool.35/
+    # https://www.truenas.com/community/threads/how-to-change-ipmi-sensor-thresholds-using-ipmitool.53620/page-8
+    # https://www.reddit.com/r/supermicro/comments/16dtqwv/need_ipmi_fan_speed_help/
+    # https://forums.servethehome.com/index.php?resources/supermicro-x9-x10-x11-fan-speed-control.20/
+    # Must be set to Standard profile
+    # Zone 1 (FANA FANB)
+    # Zone 0 (FAN1-4)
+    # FANB == Middle Wall (iPPC 3000)
+    # FANA == Front Wall (iPPC 2000)
+
+
+    # # IPMI can be remotely accessed
+    # # Supermicro default user is "ADMIN" with the password randomized (and notated on the motherboard)
+    # ipmitool -I lan -U <user> -P <password> -H 172.16.20.151 sensor thresh "FANB" lower 100 150 200
+    # ipmitool -I lan -U <user> -P <password> -H 172.16.20.151 sdr
+    # ipmitool -I lan -U <user> -P <password> -H 172.16.20.151 bmc reset cold
+
+    # # Check if the IPMI device is already available
+    # cat /proc/devices | grep "ipmi"
+    # ls /dev/ | grep "ipmi"
+
+    # # Module load if not done already (Proxmox autoloaded on 8.1 Watt)
+    # # Check for the IPMI modules available
+    # find /lib/modules/$(uname -r)/kernel/drivers/char/ipmi/ -type f -name '*.ko*' -exec modinfo {} \;
+    #   | egrep "^filename|^description"
+    # # Load the required modules
+    # modprobe ipmi_si
+    # modprobe ipmi_devintf
+    # modprobe  ipmi_ssif
+    # # Check that the required modules were loaded
+    # lsmod | grep ipmi
+
+    # # Test that the local ipmi interface (/dev/ipmi0) is working
+    # ipmitool sdr
+
+    - name: "Install required dependencies for fan control"
+      package:
+        name: "{{ item }}"
+        state: present
+      become: true
+      with_items:
+        - ipmitool
+        - smartmontools # Needed to check the smart status of the hdds
+        - lshw # Needed to get the device id of the hdds
+
+    # Solving `IANA PEN registry open failed: No such file or directory`
+    # https://forum.proxmox.com/threads/ipmi-tool-error-after-v8-upgrade.129334/
+    - name: Download enterprise-numbers.txt file
+      ansible.builtin.get_url:
+        url: "https://www.iana.org/assignments/enterprise-numbers.txt"
+        dest: "/usr/share/misc/enterprise-numbers.txt"
+        owner: root
+        group: root
+        mode: 0600
+
+    - name: "Create fan control service directory"
+      ansible.builtin.file:
+        path: "/etc/ipmi_fan_control/scripts"
+        state: directory
+        owner: root
+        group: root
+        mode: 0600
+      register: fan_control_script_dir
+
+    - name: "Copy fan control scripts to the proxmox host"
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ fan_control_script_dir.path }}/"
+        owner: root
+        group: root
+        mode: 0700
+      with_fileglob:
+        - "files/*"
+
+    - name: "Get the current ipmi sensor readings as a test"
+      ansible.builtin.command: ipmitool sdr
+      register: current_ipmi_readings
+      changed_when: false
+
+    - name: "Display the current ipmi sensor readings"
+      ansible.builtin.debug:
+        var: current_ipmi_readings
+
+    - name: "Configure ipmi fan control to auto start"
+      ansible.builtin.import_tasks: autostart.yml
+
+  rescue:
+    - name: "IPMI install failed"
+      ansible.builtin.set_fact:
+        task_failed: true

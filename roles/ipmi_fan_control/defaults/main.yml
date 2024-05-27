@@ -1,0 +1,3 @@
+---
+# defaults file for ipmi_fan_control
+ipmi_fan_control: false
