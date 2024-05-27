@@ -9,5 +9,5 @@
     pre_reboot_delay: 5
     post_reboot_delay: 30
     test_command: uptime
-  when: hostvars[inventory_hostname].allow_reboot
+  when: allow_reboot
   become: true
