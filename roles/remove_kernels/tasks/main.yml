@@ -12,18 +12,35 @@
 - name: "Get the list of available kernels excluding currently running kernel"
   ansible.builtin.shell: >-
     set -Eeuo pipefail;
-    dpkg --list | grep 'kernel-.*-pve' | awk '{print $2}' | grep --invert-match '{{ current_kernel.stdout }}' | sort -V
+    dpkg --list | grep 'kernel-.*-pve' | awk '{print $2}'
   register: available_kernels
   changed_when: false
   args:
     executable: /bin/bash
 
+- name: "Get the list of removable kernels excluding currently running kernel"
+  ansible.builtin.shell: >-
+    set -Eeuo pipefail;
+    dpkg --list | grep 'kernel-.*-pve' | awk '{print $2}' | grep --invert-match '{{ current_kernel.stdout }}' | sort -V
+  register: kernels_to_remove
+  changed_when: false
+  when: (available_kernels.stdout_lines) | length > 1
+  args:
+    executable: /bin/bash
+
+- name: "Show kernels to be removed"
+  ansible.builtin.debug:
+    msg: "Kernels that will be removed: {{ kernels_to_remove.stdout }}"
+  when: remove_unused_kernels
+
 - name: "Remove the available kernels"
   ansible.builtin.apt:
     name: "{{ item }}"
     state: absent
-  with_items: "{{ available_kernels.stdout_lines }}"
+  with_items: "{{ kernels_to_remove.stdout_lines }}"
+  when: (available_kernels.stdout_lines) | length > 1 and remove_unused_kernels
 
 - name: "Show removed kernels"
   ansible.builtin.debug:
-    msg: "Removed kernels: {{ available_kernels.stdout }}"
+    msg: "Removed kernels: {{ kernels_to_remove.stdout }}"
+  when: (available_kernels.stdout_lines) | length > 1 and remove_unused_kernels
