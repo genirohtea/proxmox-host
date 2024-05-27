@@ -20,7 +20,7 @@ Below are the variables that can be configured for this role:
 `sysfs_conf_file`: The path to the sysfs configuration file. Default is `/etc/sysfs.conf`.
 `pcie_bus_number`: The PCIe bus number for the graphics card. Default is `00:02.0`.
 `install_intel_vtd`: Whether to install Intel VT-d support. Default is `false`.
-`i915_sriov_dkms_git_sha`: The Git SHA for the i915 SR-IOV DKMS module. Default is `ffc23727f106995d89bc7ad32df4f1a3809ee737`.
+`i915_sriov_dkms_git_sha`: The Git SHA for the i915 SR-IOV DKMS module. Default is `3d7a1b3fa4706d8da316d8e794d54db96856a2b9`.
 
 Dependencies
 ------------

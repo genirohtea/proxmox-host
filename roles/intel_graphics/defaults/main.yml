@@ -7,4 +7,5 @@ pcie_bus_number: 00:02.0
 install_intel_vtd: false
 
 # Apr 7 2024 SHA
-i915_sriov_dkms_git_sha: ffc23727f106995d89bc7ad32df4f1a3809ee737
+i915_sriov_dkms_git_sha: 3d7a1b3fa4706d8da316d8e794d54db96856a2b9
+intel_graphics_kernel_version: 6.5.13-3-pve
