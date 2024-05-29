@@ -26,3 +26,5 @@
       tags: ipmi_fan_control
     - role: iommu_enable
       tags: iommu_enable
+    - role: vfio_driver_fix
+      tags: vfio_driver_fix
