@@ -1,0 +1,103 @@
+---
+# tasks file for kernel_pinning
+
+- name: "Check if the kernel is pinned to the desired version"
+  become: true
+  block:
+    - name: "Ensure pinned_kernel_version is provided"
+      assert:
+        that:
+          - pinned_kernel_version is defined
+        fail_msg: "User must specify a pinned_kernel_version"
+
+    - name: "Get the pinned kernel version"
+      shell: >-
+        set -o pipefail;
+        proxmox-boot-tool kernel list | awk '/Pinned kernel:/ {getline; print $1}'
+      args:
+        executable: /bin/bash
+      register: pinned_kernel_output
+      changed_when: false
+
+    - name: "Check if the pinned kernel version matches the desired version"
+      debug:
+        msg: "The kernel is pinned to: {{ pinned_kernel_version }}"
+
+    - name: "Exit the role if the kernel is already pinned to the desired version"
+      meta: end_play
+      when: pinned_kernel_output.stdout.strip() == pinned_kernel_version
+  rescue:
+    - name: "Failed to check if kernel was already pinned"
+      ansible.builtin.set_fact:
+        task_failed: true
+
+- name: "Pin the kernel"
+  when: allow_reboot
+  become: true
+  block:
+    - name: "Retrieve the version of the currently running kernel"
+      ansible.builtin.command: uname -r
+      register: kernel_version
+      changed_when: false
+
+    - name: "Strip the '-pve' suffix from the kernel version"
+      ansible.builtin.set_fact:
+        kernel_version_num: "{{ kernel_version.stdout | replace('-pve', '') }}"
+
+    - name: "Set kernel version"
+      ansible.builtin.set_fact:
+        kernel_version: "{{ kernel_version.stdout }}"
+
+    - name: "Display the kernel version number"
+      ansible.builtin.debug:
+        var: kernel_version_num
+
+    - name: "Install the corresponding proxmox headers headers first"
+      ansible.builtin.apt:
+        update_cache: true
+        pkg:
+          - "proxmox-headers-{{ pinned_kernel_version }}"
+        state: present
+
+    - name: "Install the desired pinned kernel version"
+      ansible.builtin.apt:
+        update_cache: true
+        pkg:
+          - "proxmox-kernel-{{ pinned_kernel_version }}-signed"
+        state: present
+
+    - name: "Pin the current kernel version to prevent it from being updated"
+      ansible.builtin.command:
+        cmd: proxmox-boot-tool kernel pin {{ pinned_kernel_version }}
+      changed_when: false
+
+    - name: "Refresh the Proxmox boot configuration"
+      ansible.builtin.command:
+        cmd: proxmox-boot-tool refresh
+      changed_when: false
+
+    - name: "List pinned kernels after pinning"
+      ansible.builtin.command:
+        cmd: proxmox-boot-tool kernel list
+      changed_when: false
+      register: proxmox_boot_tool_output
+
+    - name: "Display the proxmox-boot-tool output after pinning"
+      ansible.builtin.debug:
+        var: proxmox_boot_tool_output.stdout
+
+    - name: "Restart to change kernel"
+      reboot:
+        msg: "Force a reboot to change kernel"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+        test_command: uptime
+      when: allow_reboot
+      become: true
+
+  rescue:
+    - name: "Kernel pinning failed"
+      ansible.builtin.set_fact:
+        task_failed: true
