@@ -1,0 +1,123 @@
+---
+- name: "Enable IOMMU"
+  when: allow_reboot
+  become: true
+  block:
+    - name: "Determine which bootloader is used"
+      ansible.builtin.command: efibootmgr -v
+      register: efibootmgr_output
+      changed_when: false
+      ignore_errors: true
+
+    - name: "Set bootloader to GRUB if EFI variables indicate GRUB"
+      ansible.builtin.set_fact:
+        bootloader: "GRUB"
+      when:
+        - efibootmgr_output.stdout is defined
+        - ('shimx64.efi' in efibootmgr_output.stdout or 'grubx64.efi' in efibootmgr_output.stdout)
+
+    - name: "Set bootloader to systemd-boot if EFI variables indicate systemd-boot"
+      ansible.builtin.set_fact:
+        bootloader: "systemd-boot"
+      when:
+        - efibootmgr_output.stdout is defined
+        - ('systemd-bootx64.efi' in efibootmgr_output.stdout)
+
+    - name: "Fail if bootloader cannot be determined"
+      ansible.builtin.assert:
+        that:
+          - bootloader != ""
+        fail_msg: "Bootloader could not be determined from efibootmgr output."
+
+    - name: "Detect CPU type"
+      ansible.builtin.set_fact:
+        cpu_type: >
+          {% if 'AMD' in ansible_facts['processor'][0] %}
+            AMD
+          {% elif 'Intel' in ansible_facts['processor'][0] %}
+            Intel
+          {% else %}
+            UNKNOWN
+          {% endif %}
+
+    - name: "Fail if bootloader cannot be determined"
+      ansible.builtin.assert:
+        that:
+          - cpu_type == "UNKNOWN"
+        fail_msg: "cpu_type could not be determined from ansible facts"
+
+    - name: "Set additional GRUB arguments based on CPU type"
+      ansible.builtin.set_fact:
+        additional_grub_args: "{{ 'iommu=pt' if cpu_type == 'AMD' else 'intel_iommu=on iommu=pt' }}"
+
+    - name: "Configure IOMMU for GRUB"
+      when: bootloader == "GRUB"
+      block:
+        - name: "Set GRUB_CMDLINE_LINUX_DEFAULT for AMD or Intel"
+          ansible.builtin.lineinfile:
+            path: /etc/default/grub
+            regexp: "^GRUB_CMDLINE_LINUX_DEFAULT="
+            line: 'GRUB_CMDLINE_LINUX_DEFAULT="quiet {{ additional_grub_args }}"'
+
+        - name: "Update GRUB configuration"
+          ansible.builtin.command: update-grub
+          changed_when: false
+
+        - name: "Reboot the system if allowed"
+          ansible.builtin.reboot:
+            msg: "Rebooting to apply IOMMU changes"
+            connect_timeout: 5
+            reboot_timeout: 300
+            pre_reboot_delay: 5
+            post_reboot_delay: 30
+            test_command: uptime
+          when: allow_reboot
+      rescue:
+        - name: "IOMMU for GRUB failed"
+          ansible.builtin.set_fact:
+            task_failed: true
+
+    - name: "Configure IOMMU for systemd-boot"
+      when: bootloader == "systemd-boot"
+      block:
+        # root=ZFS=rpool/ROOT/pve-1 boot=zfs
+        - name: "Set kernel command line for AMD or Intel"
+          ansible.builtin.lineinfile:
+            path: /etc/kernel/cmdline
+            regexp: "^root="
+            line: "root=ZFS=rpool/ROOT/pve-1 boot=zfs quiet {{ additional_grub_args }}"
+
+        - name: "Refresh systemd-boot configuration"
+          ansible.builtin.command: pve-efiboot-tool refresh
+          changed_when: false
+
+        - name: "Reboot the system if allowed"
+          ansible.builtin.reboot:
+            msg: "Rebooting to apply IOMMU changes"
+            connect_timeout: 5
+            reboot_timeout: 300
+            pre_reboot_delay: 5
+            post_reboot_delay: 30
+            test_command: uptime
+          when: allow_reboot
+      rescue:
+        - name: "IOMMU for systemd-boot failed"
+          ansible.builtin.set_fact:
+            task_failed: true
+
+    - name: "Verify IOMMU is enabled"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        dmesg | grep -e IOMMU
+      register: iommu_check
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: "Display IOMMU check result"
+      ansible.builtin.debug:
+        var: iommu_check.stdout
+  rescue:
+    - name: "Enable IOMMU failed"
+      ansible.builtin.set_fact:
+        task_failed: true
