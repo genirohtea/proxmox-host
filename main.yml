@@ -24,3 +24,5 @@
       tags: intel_graphics
     - role: ipmi_fan_control
       tags: ipmi_fan_control
+    - role: iommu_enable
+      tags: iommu_enable
