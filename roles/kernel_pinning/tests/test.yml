@@ -1,0 +1,6 @@
+---
+- name: Run role test
+  hosts: localhost
+  remote_user: root
+  roles:
+    - { role: kernel_pinning, allow_reboot: true, pinned_kernel_version: "6.5.13-3-pve" }

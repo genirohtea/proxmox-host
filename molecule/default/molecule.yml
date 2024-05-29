@@ -14,3 +14,6 @@ provisioner:
   inventory:
     links:
       group_vars: ../../group_vars
+  extra_vars:
+    allow_reboot: true
+    pinned_kernel_version: "6.5.13-3-pve"

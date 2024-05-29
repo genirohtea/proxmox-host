@@ -4,15 +4,18 @@
   when: install_intel_vtd and allow_reboot
   become: true
   block:
-    - name: "Verify that the bootloader type is either GRUB or systemd"
+    - name: "Verify that the bootloader type is either GRUB or systemd determiend by color of boot screen."
       assert:
         that:
           - hostvars[inventory_hostname].bootloader_type is defined
           - hostvars[inventory_hostname].bootloader_type in ['grub']
         fail_msg: "bootloader_type must be 'grub' systemd is currently unsupported. {{ hostvars }}"
 
-    - name: "Pin the required DKMS compatible kernel"
-      ansible.builtin.import_tasks: kernel_pinning.yml
+    - name: "Pin the current kernel"
+      include_role:
+        name: kernel_pinning
+      vars:
+        pinned_kernel_version: "{{ required_kernel_version }}"
 
     - name: "Retrieve the version of the currently running kernel"
       ansible.builtin.command: uname -r

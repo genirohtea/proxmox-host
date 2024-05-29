@@ -1,0 +1,3 @@
+---
+# defaults file for kernel_pinning
+allow_reboot: false
