@@ -1,0 +1,6 @@
+---
+- name: "Run local test"
+  hosts: localhost
+  remote_user: root
+  roles:
+    - vfio_driver_fix

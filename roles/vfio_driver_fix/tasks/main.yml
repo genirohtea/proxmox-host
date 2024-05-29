@@ -1,0 +1,79 @@
+---
+# tasks file for vfio_driver_fix
+- name: "Fix VFIO driver loading to allow GPU passthrough"
+  when: allow_reboot
+  become: true
+  block:
+    - name: "Ensure vfio module is present in /etc/modules"
+      ansible.builtin.lineinfile:
+        path: /etc/modules
+        line: "vfio"
+        state: present
+
+    - name: "Ensure vfio_iommu_type1 module is present in /etc/modules"
+      ansible.builtin.lineinfile:
+        path: /etc/modules
+        line: "vfio_iommu_type1"
+        state: present
+
+    - name: "Ensure vfio_pci module is present in /etc/modules"
+      ansible.builtin.lineinfile:
+        path: /etc/modules
+        line: "vfio_pci"
+        state: present
+
+    - name: "Update initramfs images"
+      ansible.builtin.command: update-initramfs -u -k all
+      changed_when: false
+
+    - name: "Reboot to apply VFIO module changes"
+      ansible.builtin.reboot:
+        msg: "Rebooting to apply VFIO module changes"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+        test_command: uptime
+      when: allow_reboot
+
+    - name: "Verify VFIO modules are loaded"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        dmesg | grep -i vfio
+      register: vfio_check
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: "Display VFIO check result"
+      ansible.builtin.debug:
+        var: vfio_check.stdout
+
+    - name: "Verify interrupt remapping support"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        dmesg | grep 'remapping'
+      args:
+        executable: /bin/bash
+      register: remapping_check
+      changed_when: false
+
+    - name: "Display remapping check result"
+      ansible.builtin.debug:
+        var: remapping_check.stdout
+
+    - name: "Enable insecure interrupts if remapping is not supported"
+      ansible.builtin.lineinfile:
+        path: /etc/modprobe.d/iommu_unsafe_interrupts.conf
+        line: "options vfio_iommu_type1 allow_unsafe_interrupts=1"
+        create: true
+        state: present
+        owner: root
+        group: root
+        mode: 0600
+      when: ('Interrupt remapping enabled' not in remapping_check.stdout)
+
+  rescue:
+    - name: "VFIO driver fix failed"
+      ansible.builtin.set_fact:
+        task_failed: true
