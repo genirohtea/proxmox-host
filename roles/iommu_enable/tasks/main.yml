@@ -31,20 +31,18 @@
 
     - name: "Detect CPU type"
       ansible.builtin.set_fact:
-        cpu_type: >
-          {% if 'AMD' in ansible_facts['processor'][0] %}
-            AMD
-          {% elif 'Intel' in ansible_facts['processor'][0] %}
-            Intel
-          {% else %}
-            UNKNOWN
-          {% endif %}
+        cpu_type: >-
+          {{
+            'AMD' if 'AMD' in ansible_facts['processor'][1] else
+            'Intel' if 'Intel' in ansible_facts['processor'][1] else
+            'UNKNOWN' | trim
+          }}
 
     - name: "Fail if bootloader cannot be determined"
       ansible.builtin.assert:
         that:
-          - cpu_type == "UNKNOWN"
-        fail_msg: "cpu_type could not be determined from ansible facts"
+          - cpu_type != "UNKNOWN"
+        fail_msg: "cpu_type could not be determined from ansible facts: {{ ansible_facts['processor'] }}"
 
     - name: "Set additional GRUB arguments based on CPU type"
       ansible.builtin.set_fact:
