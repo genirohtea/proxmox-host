@@ -3,7 +3,6 @@ galaxy_info:
   author: genirohtea
   description: Removes all Proxmox VE kernels except for the currently running one
 
-
   # If the issue tracker for your role is not on github, uncomment the
   # next line and provide a value
   # issue_tracker_url: http://example.com/issue/tracker
@@ -17,7 +16,7 @@ galaxy_info:
   # - CC-BY-4.0
   license: BSD-3-Clause
 
-  min_ansible_version: '2.14'
+  min_ansible_version: "2.14"
 
   # If this a Container Enabled role, provide the minimum Ansible Container version.
   # min_ansible_container_version:

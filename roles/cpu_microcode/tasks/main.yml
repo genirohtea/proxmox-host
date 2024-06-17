@@ -1,5 +1,4 @@
 ---
-
 - name: "Current ansible processor"
   ansible.builtin.debug:
     msg: "{{ ansible_processor }}"
@@ -20,7 +19,7 @@
 
 - name: "Add debian repo package for intel"
   apt_repository:
-    repo: deb http://security.debian.org/debian-security {{ ansible_distribution_release }}-security main contrib non-free-firmware  # yamllint disable-line rule:line-length
+    repo: deb http://security.debian.org/debian-security {{ ansible_distribution_release }}-security main contrib non-free-firmware # yamllint disable-line rule:line-length
     state: present
   become: true
 
