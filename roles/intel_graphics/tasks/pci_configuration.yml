@@ -47,7 +47,6 @@
     that: "'sriov_numvfs = 7' in sysfs_conf_content.stdout"
     fail_msg: "Substring 'sriov_numvfs = 7' not found in output"
 
-
 - name: "Notify the user about the required MOK management enrollment upon reboot"
   debug:
     msg: "System will now reboot. User is required to Perform MOK management
@@ -62,7 +61,6 @@
     post_reboot_delay: 30
     test_command: uptime
   when: allow_reboot
-
 
 - name: "Retrieve information about the VGA device"
   ansible.builtin.shell:

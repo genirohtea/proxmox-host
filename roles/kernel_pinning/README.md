@@ -1,7 +1,7 @@
-Role Name
-=========
+Kernel Pinning
+==============
 
-A brief description of the role goes here.
+This role pins the Proxmox kernel to a specified version to ensure stability and compatibility.
 
 Requirements
 ------------
@@ -11,26 +11,29 @@ Any pre-requisites that may not be covered by Ansible itself or the role should 
 Role Variables
 --------------
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+- `allow_reboot`: Boolean to allow the system to reboot after making changes. Default is `false`.
+- `pinned_kernel_version`: The version of the kernel to pin.
 
 Dependencies
 ------------
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
+None
 
 Example Playbook
 ----------------
 
 Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
 
-    - hosts: servers
-      roles:
-        - { role: username.rolename, x: 42 }
+```yaml
+- hosts: servers
+  roles:
+    - { role: kernel_pinning, allow_reboot: true, pinned_kernel_version: '5.4.78-2-pve' }
+```
 
 License
 -------
 
-BSD
+BSD-3-Clause
 
 Author Information
 ------------------

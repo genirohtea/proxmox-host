@@ -71,3 +71,9 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies: [types-all]
+  - repo: https://github.com/oxsecurity/megalinter
+    rev: v7.12.0 # Git tag specifying the hook, not mega-linter-runner, version
+    hooks:
+      - id: megalinter-incremental # Faster, less thorough
+        stages:
+          - commit

@@ -2,11 +2,11 @@
 # Configuration file for MegaLinter
 # See all available variables at https://megalinter.io/configuration/ and in linters documentation
 
-APPLY_FIXES: all  # all, none, or list of linter keys
+APPLY_FIXES: all # all, none, or list of linter keys
 # ENABLE: # If you use ENABLE variable, all other languages/formats/tooling-formats will be disabled by default
 # ENABLE_LINTERS: # If you use ENABLE_LINTERS variable, all other linters will be disabled by default
 DISABLE:
-  - COPYPASTE  # Comment to enable checks of excessive copy-pastes
+  - COPYPASTE # Comment to enable checks of excessive copy-pastes
 DISABLE_LINTERS:
   - REPOSITORY_DEVSKIM
   - REPOSITORY_KICS
@@ -14,7 +14,7 @@ DISABLE_LINTERS:
   - YAML_V8R
   - SPELL_CSPELL
   - SPELL_LYCHEE
-  - REPOSITORY_GRYPE  # Renable if you have container images
+  - REPOSITORY_GRYPE # Renable if you have container images
 SHOW_ELAPSED_TIME: true
 FILEIO_REPORTER: false
 VALIDATE_ALL_CODEBASE: true

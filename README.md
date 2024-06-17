@@ -34,7 +34,7 @@ Including an example of how to use the `gpu_passthrough` role (for instance, wit
 ```yaml
 - hosts: servers
   roles:
-     - { role: gpu_passthrough, allow_reboot: true, graphics_card: 'NVIDIA' }
+    - { role: gpu_passthrough, allow_reboot: true, graphics_card: 'NVIDIA' }
 ```
 
 ### License

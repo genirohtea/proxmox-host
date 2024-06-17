@@ -9,7 +9,7 @@
 - name: "Update the GRUB configuration file with the specified kernel parameters"
   ansible.builtin.lineinfile:
     path: "{{ grub_file }}"
-    regexp: '^GRUB_CMDLINE_LINUX_DEFAULT'
+    regexp: "^GRUB_CMDLINE_LINUX_DEFAULT"
     line: 'GRUB_CMDLINE_LINUX_DEFAULT="{{ grub_command }}"'
   vars:
     grub_command: >-
