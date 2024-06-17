@@ -1,0 +1,59 @@
+---
+- name: "Verification Block"
+  become: true
+  block:
+    - name: "Verify IOMMU"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        dmesg | grep -E "DMAR|IOMMU"
+      register: iommu_check
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: "Display IOMMU check results"
+      ansible.builtin.debug:
+        var: iommu_check.stdout_lines
+
+    - name: "Verify Interrupt Remapping"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        dmesg | grep 'remapping'
+      register: remapping_check
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: "Display Remapping check results"
+      ansible.builtin.debug:
+        var: remapping_check.stdout_lines
+
+    - name: "Verify VFIO"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        dmesg | grep -i vfio
+      register: vfio_check
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: "Display VFIO check results"
+      ansible.builtin.debug:
+        var: vfio_check.stdout_lines
+
+    - name: "Verify correct driver loading for NVIDIA"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        lspci -nnk | grep 'NVIDIA'
+      register: driver_check_nvidia
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: "Display driver loading check results for NVIDIA"
+      ansible.builtin.debug:
+        var: driver_check_nvidia.stdout_lines
+  rescue:
+    - name: "GPU passthrough validation failed"
+      ansible.builtin.set_fact:
+        task_failed: true
