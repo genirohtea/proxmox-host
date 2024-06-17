@@ -28,3 +28,5 @@
       tags: iommu_enable
     - role: vfio_driver_fix
       tags: vfio_driver_fix
+    - role: gpu_passthrough
+      tags: gpu_passthrough

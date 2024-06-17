@@ -1,0 +1,28 @@
+---
+# tasks file for gpu_passthrough
+- name: "Enable GPU passthrough"
+  when: allow_reboot and graphics_card is defined
+  block:
+    - name: "Enable AMD GPU passthrough"
+      ansible.builtin.import_tasks: amd.yml
+      when: graphics_card == 'AMD'
+    - name: "Enable NVIDIA GPU passthrough"
+      ansible.builtin.import_tasks: nvidia.yml
+      when: graphics_card == 'NVIDIA'
+
+    - name: "Reboot the system again for changes to take effect"
+      ansible.builtin.reboot:
+        msg: "Rebooting to apply GPU passthrough changes"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+        test_command: uptime
+      when: allow_reboot
+
+    - name: "Validate that passthrough succeeded"
+      ansible.builtin.import_tasks: validate.yml
+  rescue:
+    - name: "GPU Passthrough failed"
+      ansible.builtin.set_fact:
+        task_failed: true

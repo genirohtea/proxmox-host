@@ -1,0 +1,113 @@
+---
+# yamllint disable-rule rule:line-length
+
+- name: "AMD GPU Configuration Block"
+  when: allow_reboot
+  become: true
+  block:
+    - name: "Ensure required packages are installed (for AMD)"
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - pve-headers
+        - git
+        - dkms
+        - build-essential
+
+    - name: "Clone the vendor-reset repository for AMD cards"
+      ansible.builtin.git:
+        repo: 'https://github.com/gnif/vendor-reset.git'
+        dest: /usr/src/vendor-reset
+        version: master
+
+    - name: "Install vendor-reset module using dkms"
+      ansible.builtin.command:
+        cmd: dkms install .
+        chdir: /usr/src/vendor-reset
+      changed_when: false
+
+    - name: "Add vendor-reset module to /etc/modules"
+      ansible.builtin.lineinfile:
+        path: /etc/modules
+        line: vendor-reset
+        create: true
+        owner: root
+        group: root
+        mode: 0600
+
+    - name: "Update initramfs"
+      ansible.builtin.command: update-initramfs -u
+      changed_when: false
+
+    - name: "Reboot the system for AMD changes"
+      ansible.builtin.reboot:
+        msg: "Force a reboot to allow the dkms kernel module to be used"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+        test_command: "uptime"
+      when: allow_reboot
+
+    - name: "Check that the module was loaded"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        dmesg | grep vendor_reset
+      register: dkms_module_load
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: "Check that the module was loaded"
+      ansible.builtin.debug:
+        var: dkms_module_load.stdout_lines
+
+    - name: "Get PCI IDs for AMD GPU"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        lspci -nn | grep 'AMD'
+      register: amd_pci_info
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: "Extract PCI IDs for AMD GPU"
+      ansible.builtin.set_fact:
+        amd_pci_ids: "{{ amd_pci_info.stdout_lines | map('extract', regex='\\[([0-9a-fA-F]{4}:[0-9a-fA-F]{4})\\]', index=1) | list }}"
+
+    - name: "Create systemd service for AMD GPU reset method"
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/vreset.service
+        content: |
+          [Unit]
+          Description=AMD GPU reset method to 'device_specific'
+          After=multi-user.target
+          [Service]
+          ExecStart=/usr/bin/bash -c 'echo device_specific > /sys/bus/pci/devices/0000:{{ amd_pci_id.stdout_lines[0].split()[0] }}/reset_method'
+          [Install]
+          WantedBy=multi-user.target
+        owner: root
+        group: root
+        mode: 0600
+
+    - name: "Enable and start vreset service"
+      ansible.builtin.systemd:
+        name: vreset.service
+        enabled: true
+        state: started
+
+    - name: "Ensure vfio-pci module is loaded before other drivers for AMD"
+      ansible.builtin.lineinfile:
+        path: /etc/modprobe.d/vfio.conf
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "options vfio-pci ids={{ amd_pci_ids | join(',') }}"
+        - "softdep radeon pre: vfio-pci"
+        - "softdep amdgpu pre: vfio-pci"
+
+  rescue:
+    - name: "AMD GPU Passthrough failed"
+      ansible.builtin.set_fact:
+        task_failed: true
