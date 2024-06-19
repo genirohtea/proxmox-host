@@ -1,0 +1,19 @@
+---
+- name: Configure Proxmox for Terraform
+  block:
+    - name: "Create the TerraformProv role"
+      command: >
+        pveum role add TerraformProv -privs "{{ proxmox_privileges }}"
+      changed_when: false
+
+    - name: "Create the terraform-prov user"
+      command: pveum user add terraform-prov@pve
+      changed_when: false
+
+    - name: "Assign the TerraformProv role to the terraform-prov user"
+      command: pveum aclmod / -user terraform-prov@pve -role TerraformProv
+      changed_when: false
+  rescue:
+    - name: "Terraform user creation failed"
+      ansible.builtin.set_fact:
+        task_failed: true

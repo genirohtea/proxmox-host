@@ -1,0 +1,6 @@
+---
+- name: Test the terraform user role
+  hosts: localhost
+  remote_user: root
+  roles:
+    - terraform_user
