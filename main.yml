@@ -30,3 +30,5 @@
       tags: vfio_driver_fix
     - role: gpu_passthrough
       tags: gpu_passthrough
+    - role: terraform_user
+      tags: terraform_user
