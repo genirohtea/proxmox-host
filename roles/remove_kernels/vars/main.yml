@@ -1,2 +1,3 @@
 ---
 # vars file for remove_kernels
+remove_unused_kernels: false

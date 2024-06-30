@@ -2,9 +2,7 @@
 # tasks file for ipmi_fan_control
 
 - name: "Utilize IPMI for fan control"
-  when:
-    - ipmi_fan_control is defined
-    - ipmi_fan_control
+  when: ipmi_fan_control
   block:
     # https://www.truenas.com/community/resources/how-to-change-ipmi-sensor-thresholds-using-ipmitool.35/
     # https://www.truenas.com/community/threads/how-to-change-ipmi-sensor-thresholds-using-ipmitool.53620/page-8

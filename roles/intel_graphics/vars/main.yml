@@ -1,3 +1,14 @@
 ---
 # vars file for intel_graphics
 bootloader_type: unknown
+
+grub_file: /etc/default/grub
+has_google_coral_pc: false
+sysfs_conf_file: /etc/sysfs.conf
+pcie_bus_number: 00:02.0
+install_intel_vtd: false
+allow_reboot: false
+
+# Apr 7 2024 SHA
+i915_sriov_dkms_git_sha: 3d7a1b3fa4706d8da316d8e794d54db96856a2b9
+required_kernel_version: 6.5.13-3-pve
