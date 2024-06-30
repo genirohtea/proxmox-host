@@ -1,13 +1,35 @@
 ---
 - name: Configure Proxmox for Terraform
   block:
+    - name: "Check if TerraformProv role already exists"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        pveum role list | grep -E "TerraformProv"
+      register: role_check
+      changed_when: false
+      ignore_errors: true
+      args:
+        executable: /bin/bash
+
     - name: "Create the TerraformProv role"
       command: >
         pveum role add TerraformProv -privs "{{ proxmox_privileges }}"
+      when: role_check.rc != 0
       changed_when: false
+
+    - name: "Check if terraform user already exists"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        pveum user list | grep -E "terraform-prov"
+      register: user_check
+      changed_when: false
+      ignore_errors: true
+      args:
+        executable: /bin/bash
 
     - name: "Create the terraform-prov user"
       command: pveum user add terraform-prov@pve
+      when: user_check.rc != 0
       changed_when: false
 
     - name: "Assign the TerraformProv role to the terraform-prov user"
