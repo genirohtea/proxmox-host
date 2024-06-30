@@ -23,16 +23,17 @@
       debug:
         msg: "The kernel is pinned to: {{ pinned_kernel_version }}"
 
-    - name: "Exit the role if the kernel is already pinned to the desired version"
-      meta: end_play
-      when: pinned_kernel_output.stdout.strip() == pinned_kernel_version
+    - name: "Notify that kernel is already pinned"
+      ansible.builtin.set_fact:
+        is_kernel_correctly_pinned: pinned_kernel_output.stdout.strip() == pinned_kernel_version
+
   rescue:
     - name: "Failed to check if kernel was already pinned"
       ansible.builtin.set_fact:
         task_failed: true
 
 - name: "Pin the kernel"
-  when: allow_reboot
+  when: allow_reboot and not is_kernel_correctly_pinned
   become: true
   block:
     - name: "Retrieve the version of the currently running kernel"
