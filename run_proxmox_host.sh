@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # https://betterdev.blog/minimal-safe-bash-script-template/
-set -Eeuo pipefail
+set -Eeuxo pipefail
 
 # script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 
@@ -50,7 +50,10 @@ parse_params() {
   while :; do
     case "${1-}" in
     -h | --help) usage ;;
-    -v | --verbose) set -x ;;
+    -v | --verbose)
+      set -x
+      verbosity="-vvv"
+      ;;
     -t | --tags)
       tags="${2-}"
       shift
@@ -99,10 +102,13 @@ fi
 
 msg "Running playbook on ${host}"
 
-pushd "${ansible_dir}"
 if [[ -n "${tags-}" ]]; then
-  ansible-playbook main.yml --ask-pass --tags "${tags}" --extra-vars '{"allow_reboot": '\""${allow_reboot}"\"', "install_intel_vtd": '\""${install_intel_vtd}"\"' }' --limit "${host}" -vvv
-else
-  ansible-playbook main.yml --ask-pass --extra-vars '{"allow_reboot": '\""${allow_reboot}"\"', "install_intel_vtd": '\""${install_intel_vtd}"\"' }' --limit "${host}" -vvv
+  tags="--tags ${tags}"
 fi
+
+pushd "${ansible_dir}"
+
+# shellcheck disable=SC2086
+ansible-playbook main.yml --ask-pass ${verbosity:-} ${tags} --extra-vars '{"allow_reboot": '"${allow_reboot}"', "install_intel_vtd": '"${install_intel_vtd}"' }' --limit "${host}"
+
 popd
