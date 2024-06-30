@@ -24,10 +24,6 @@
       tags: intel_graphics
     - role: ipmi_fan_control
       tags: ipmi_fan_control
-    - role: iommu_enable
-      tags: iommu_enable
-    - role: vfio_driver_fix
-      tags: vfio_driver_fix
     - role: gpu_passthrough
       tags: gpu_passthrough
     - role: terraform_user
