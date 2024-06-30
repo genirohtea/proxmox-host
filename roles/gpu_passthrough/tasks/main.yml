@@ -3,6 +3,16 @@
 - name: "Enable GPU passthrough"
   when: allow_reboot and graphics_card is defined
   block:
+    - name: "Enable IOMMU"
+      tags: iommu_enable
+      include_role:
+        name: iommu_enable
+
+    - name: "Load VFIO modules"
+      tags: vfio_driver_fix
+      include_role:
+        name: vfio_driver_fix
+
     - name: "Enable AMD GPU passthrough"
       ansible.builtin.import_tasks: amd.yml
       when: graphics_card == 'AMD'
