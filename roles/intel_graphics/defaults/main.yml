@@ -1,5 +1,7 @@
 ---
 # defaults file for intel_graphics
+bootloader_type: unknown
+
 grub_file: /etc/default/grub
 has_google_coral_pc: false
 sysfs_conf_file: /etc/sysfs.conf
