@@ -15,13 +15,14 @@ DISABLE_LINTERS:
   - SPELL_CSPELL
   - SPELL_LYCHEE
   - REPOSITORY_GRYPE # Renable if you have container images
+  - MARKDOWN_MARKDOWN_LINK_CHECK # Re-enable if you have markdown links/public repo for changelog
 SHOW_ELAPSED_TIME: true
 FILEIO_REPORTER: false
 VALIDATE_ALL_CODEBASE: true
 # DISABLE_ERRORS: true # Uncomment if you want MegaLinter to detect errors but not block CI to pass
 
 # ADDITIONAL_EXCLUDED_DIRECTORIES does not work currently
-FILTER_REGEX_EXCLUDE: (\.github)
+FILTER_REGEX_EXCLUDE: (\.github|terraform\.tfstate\.d)
 
 ANSIBLE_ANSIBLE_LINT_CONFIG_FILE: LINTER_DEFAULT
 
@@ -31,5 +32,15 @@ REPOSITORY_GITLEAKS_DISABLE_ERRORS: true
 
 # Needed because trufflehog picks up a PAT from .git/config
 #   in Github Actions due to https://github.com/trufflesecurity/trufflehog/issues/2515
-REPOSITORY_TRUFFLEHOG_ARGUMENTS: --exclude-paths=".git/config"
-REPOSITORY_CHECKOV_ARGUMENTS: --skip-check CKV2_GHA_1
+REPOSITORY_TRUFFLEHOG_ARGUMENTS: --exclude-paths=.exclude_lint_paths
+REPOSITORY_CHECKOV_ARGUMENTS: --skip-check CKV2_GHA_1 --skip-check CKV2_AZURE_1 --skip-check CKV2_AZURE_32 --skip-check CKV2_AZURE_33 --skip-check CKV_AZURE_43
+
+# This linter doesnt like opentofu but provides reasonable feedback
+TERRAFORM_TERRASCAN_DISABLE_ERRORS: true
+
+# Disable the name check in tflint since it doesnt handle workspace names well
+TERRAFORM_TFLINT_ARGUMENTS: --disable-rule=azurerm_key_vault_invalid_name
+
+# https://github.com/oxsecurity/megalinter/issues/2699
+TERRAFORM_TFLINT_UNSECURED_ENV_VARIABLES:
+  - GITHUB_TOKEN
