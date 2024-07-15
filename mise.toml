@@ -1,0 +1,14 @@
+[env]
+# Arbitrary Environment Variables
+geniroh_PROJECT_NAME = 'proxmox-host'
+
+[tools]
+# Specify tooling versions
+python = '3.12.2'
+
+[plugins]
+# specify a custom repo url
+# note this will only be used if the plugin does not already exist
+
+
+[settings]

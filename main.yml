@@ -1,15 +1,21 @@
 ---
-- name: "Pre tasks"
+- name: "Install the various proxmox roles"
   hosts: all
+  vars_prompt:
+    - name: admin_username
+      prompt: What is the admin username?
+      private: false
+
+    - name: admin_password
+      prompt: What is admin user password?
+      private: true
+
   pre_tasks:
     - name: Verify Ansible is version 2.11 or above. (If this fails you may need to update Ansible)
       assert:
         that: "ansible_version.full is version_compare('2.11', '>=')"
         msg: >
           "Ansible is out of date."
-
-- name: "Install the various proxmox roles"
-  hosts: all
   roles:
     - role: disable_subscription_nag
       tags: disable_subscription_nag
@@ -28,3 +34,5 @@
       tags: gpu_passthrough
     - role: terraform_user
       tags: terraform_user
+    - role: admin_user
+      tags: admin_user
