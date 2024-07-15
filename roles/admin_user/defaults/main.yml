@@ -1,0 +1,3 @@
+---
+# The PVE role to assign to the admin user
+pve_role: Administrator

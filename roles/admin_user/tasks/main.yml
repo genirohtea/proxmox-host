@@ -1,0 +1,53 @@
+---
+- name: Add an administrative user
+  block:
+    - name: Add the administrative user as a linux user
+      become: true
+      ansible.builtin.user:
+        name: "{{ admin_username }}"
+        shell: /bin/bash
+        create_home: true
+        generate_ssh_key: true
+        ssh_key_bits: 4096
+        ssh_key_type: "rsa"
+        password: "{{ admin_password | password_hash('sha512', 65534 | random(seed=inventory_hostname) | string) }}"
+
+    # Have to add this user to proxmox PAM
+
+    - name: "Check if administrative user already exists"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        pveum user list | grep -E "{{ admin_username }}@pam"
+      register: user_check
+      changed_when: false
+      ignore_errors: true
+      args:
+        executable: /bin/bash
+
+    - name: "Add the linux PAM user to proxmox ACLs"
+      command: "pveum user add {{ admin_username }}@pam"
+      when: user_check.rc != 0
+      changed_when: false
+
+    - name: "Check if Administrator role already exists"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        pveum role list | grep -E "{{ pve_role }}"
+      register: role_check
+      changed_when: false
+      ignore_errors: true
+      args:
+        executable: /bin/bash
+
+    - name: "Give Administrator permissions to the administrator user"
+      command: "pveum aclmod / -user {{ admin_username }}@pam -role {{ pve_role }}"
+      changed_when: false
+
+    - name: "Check administrator user permissions"
+      command: "pveum user permissions {{ admin_username }}@pam"
+      changed_when: false
+
+  rescue:
+    - name: "Administrator user creation failed"
+      ansible.builtin.set_fact:
+        task_failed: true
