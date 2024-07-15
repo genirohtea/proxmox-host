@@ -11,9 +11,9 @@
       private: true
 
   pre_tasks:
-    - name: Verify Ansible is version 2.11 or above. (If this fails you may need to update Ansible)
+    - name: Verify Ansible is version 2.15 or above. (If this fails you may need to update Ansible)
       assert:
-        that: "ansible_version.full is version_compare('2.11', '>=')"
+        that: "ansible_version.full is version_compare('2.15', '>=')"
         msg: >
           "Ansible is out of date."
   roles:
