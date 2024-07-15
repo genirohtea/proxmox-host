@@ -16,5 +16,5 @@ molecule init scenario <scenario_name> --driver-name=docker
 brew install docker docker-compose colima
 colima start
 docker run hello-world
-DOCKER_HOST=unix:///Users/<user>/.colima/docker.sock molecule test all
+DOCKER_HOST=unix:///Users/<user>/.orbstack/run/docker.sock molecule test all
 ```
