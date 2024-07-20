@@ -1,0 +1,62 @@
+---
+- name: "Construct URL and filename"
+  ansible.builtin.set_fact:
+    iso_url: "{{ item.base_url | replace('{version}', item.version) }}"
+    download_filename: "{{ item.base_url | replace('{version}', item.version) | basename }}"
+
+- name: "Construct URL and filename"
+  ansible.builtin.set_fact:
+    iso_filename: "{{ download_filename | regex_replace('\\.iso.*', '.iso') }}"
+
+- name: "Check if ISO file already exists"
+  ansible.builtin.stat:
+    path: "{{ iso_folder }}/{{ iso_filename }}"
+  register: iso_file
+
+- name: "Download ISO"
+  tags:
+    - molecule-notest
+  when: not iso_file.stat.exists
+  block:
+    - name: "Download the ISO if it does not exist"
+      ansible.builtin.get_url:
+        url: "{{ iso_url }}"
+        dest: "{{ iso_folder }}/{{ download_filename }}"
+        mode: "0644"
+
+    - name: "Install bzip2 if the ISO file ends in .bz2"
+      ansible.builtin.apt:
+        name: bzip2
+        state: present
+      when: download_filename | regex_search('\.bz2$')
+
+    - name: "Extract the ISO file if it ends in .bz2"
+      ansible.builtin.command: "bzip2 -d {{ iso_folder }}/{{ download_filename }}"
+      when: download_filename | regex_search('\.bz2$')
+      changed_when: false
+
+    - name: "Install tar if the ISO file ends in .tar.gz"
+      ansible.builtin.apt:
+        name: tar
+        state: present
+      when: download_filename | regex_search('\.tar\.gz$')
+
+    - name: "Install unzip if the ISO file ends in .zip"
+      ansible.builtin.apt:
+        name: unzip
+        state: present
+      when: download_filename | regex_search('\.zip$')
+
+    - name: "Extract the ISO file if it ends in .zip or .tar.gz"
+      ansible.builtin.unarchive:
+        src: "{{ iso_folder }}/{{ download_filename }}"
+        dest: "{{ iso_folder }}"
+        remote_src: true
+        mode: "0644"
+      when: download_filename | regex_search('\.zip$') or download_filename | regex_search('\.tar\.gz$')
+
+    - name: "Remove the compressed file if extraction is successful"
+      ansible.builtin.file:
+        path: "{{ iso_folder }}/{{ download_filename }}"
+        state: absent
+      when: download_filename | regex_search('\.(bz2|tar\.gz|zip)$')

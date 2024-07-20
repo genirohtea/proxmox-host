@@ -1,0 +1,3 @@
+---
+# defaults file for download_isos
+iso_folder: /var/lib/vz/template/iso
