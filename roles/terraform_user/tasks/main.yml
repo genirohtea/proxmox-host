@@ -35,6 +35,19 @@
     - name: "Assign the TerraformProv role to the terraform-prov user"
       command: pveum aclmod / -user terraform-prov@pve -role TerraformProv
       changed_when: false
+
+    # Exzmple generated token
+    # pveum user token add terraform-prov@pve testtoken --comment "test token" --privsep 0
+    # ┌──────────────┬────────────────────────────────────────┐
+    # │ key          │ value                                  │
+    # ╞══════════════╪════════════════════════════════════════╡
+    # │ full-tokenid │ terraform-prov@pve!testtoken           │
+    # ├──────────────┼────────────────────────────────────────┤
+    # │ info         │ {"comment":"test token","privsep":"0"} │
+    # ├──────────────┼────────────────────────────────────────┤
+    # │ value        │ blah  │
+    # └──────────────┴────────────────────────────────────────┘
+
   rescue:
     - name: "Terraform user creation failed"
       ansible.builtin.set_fact:
