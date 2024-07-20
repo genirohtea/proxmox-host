@@ -1,0 +1,37 @@
+---
+# tasks file for nvidia_gpu
+
+- name: "Install Nvidia VGPU script"
+  block:
+    - name: "Setup the vGPU script"
+      ansible.builtin.import_tasks: use_vgpu_script.yml
+
+  rescue:
+    - name: "Nvidia VGPU script download failed"
+      ansible.builtin.set_fact:
+        task_failed: true
+
+- name: "Install Nvidia VGPU"
+  when: install_nvidia_vgpu and allow_reboot
+  become: true
+  block:
+    # The manual method requires access to NVIDIA drivers.
+    # It also is more brittle since I have to maintain it.
+
+    - name: "Install the required packages"
+      ansible.builtin.import_tasks: install_packages.yml
+    - name: "Download the unlock tool"
+      ansible.builtin.import_tasks: download_unlock.yml
+    - name: "Create the unlock config files"
+      ansible.builtin.import_tasks: create_vgpu_unlock_config.yml
+    - name: "Enable IOMMU"
+      include_role:
+        name: iommu_enable
+    - name: "Load required vfio drivers"
+      include_role:
+        name: vfio_driver_fix
+
+  rescue:
+    - name: "Nvidia VGPU manual install failed"
+      ansible.builtin.set_fact:
+        task_failed: true

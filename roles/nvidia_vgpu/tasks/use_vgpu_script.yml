@@ -1,0 +1,11 @@
+---
+# git clone https://github.com/wvthoog/proxmox-vgpu-installer.git
+# cd proxmox-vgpu-installer
+# bash proxmox-installer.sh
+
+- name: "Clone the vgpu installer script"
+  ansible.builtin.git:
+    repo: "https://github.com/genirohtea/proxmox-vgpu-installer"
+    dest: /root/proxmx-vgpu-installer
+    update: true
+    version: e98d0991f60556f131c67bddfe24e006d6b6412e

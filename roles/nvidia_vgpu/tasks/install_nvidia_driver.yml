@@ -1,0 +1,5 @@
+---
+# chmod +x NVIDIA-Linux-x86_64-550.54.16-vgpu-kvm.run
+# ./NVIDIA-Linux-x86_64-550.54.16-vgpu-kvm.run --dkms -m=kernel
+# reboot
+# Installation of the NVIDIA Accelerated Graphics Driver for Linux-x86_64 (version: 550.54.16) is now complete.

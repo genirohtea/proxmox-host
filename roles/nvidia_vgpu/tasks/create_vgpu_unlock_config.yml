@@ -1,0 +1,61 @@
+---
+- name: "Create /etc/vgpu_unlock directory"
+  ansible.builtin.file:
+    path: "/etc/vgpu_unlock"
+    state: directory
+    owner: root
+    group: root
+    mode: 0644
+
+- name: "Create profile_override.toml file"
+  ansible.builtin.file:
+    path: "/etc/vgpu_unlock/profile_override.toml"
+    state: touch
+    owner: root
+    group: root
+    mode: 0644
+
+- name: "Create nvidia-vgpud.service.d directory"
+  ansible.builtin.file:
+    path: "/etc/systemd/system/nvidia-vgpud.service.d"
+    state: directory
+    owner: root
+    group: root
+    mode: 0644
+
+- name: "Create nvidia-vgpu-mgr.service.d directory"
+  ansible.builtin.file:
+    path: "/etc/systemd/system/nvidia-vgpu-mgr.service.d"
+    state: directory
+    owner: root
+    group: root
+    mode: 0644
+
+- name: "Ensure vgpu_unlock.conf for nvidia-vgpud contains Environment setting"
+  ansible.builtin.lineinfile:
+    path: "/etc/systemd/system/nvidia-vgpud.service.d/vgpu_unlock.conf"
+    line: "Environment=LD_PRELOAD=/opt/vgpu_unlock-rs/target/release/libvgpu_unlock_rs.so"
+    create: true
+    insertbefore: BOF
+    owner: root
+    group: root
+    mode: 0644
+
+- name: "Ensure vgpu_unlock.conf for nvidia-vgpu-mgr contains Environment setting"
+  ansible.builtin.lineinfile:
+    path: "/etc/systemd/system/nvidia-vgpu-mgr.service.d/vgpu_unlock.conf"
+    line: "Environment=LD_PRELOAD=/opt/vgpu_unlock-rs/target/release/libvgpu_unlock_rs.so"
+    create: true
+    insertbefore: BOF
+    owner: root
+    group: root
+    mode: 0644
+
+- name: "Ensure config.toml contains unlock setting"
+  ansible.builtin.lineinfile:
+    path: "/etc/vgpu_unlock/config.toml"
+    line: "unlock = false"
+    create: true
+    owner: root
+    group: root
+    mode: 0644

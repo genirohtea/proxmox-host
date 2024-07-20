@@ -1,0 +1,11 @@
+---
+- name: "Install the required packages"
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - git
+    - build-essential
+    - dkms
+    - pve-headers
+    - mdevctl

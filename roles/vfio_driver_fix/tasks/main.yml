@@ -22,6 +22,25 @@
         line: "vfio_pci"
         state: present
 
+    - name: "Ensure nvfio_virqfd module is present in /etc/modules"
+      ansible.builtin.lineinfile:
+        path: /etc/modules
+        line: "nvfio_virqfd"
+        state: present
+      when: install_nvidia_vgpu
+
+    - name: "Utilize blacklist method"
+      ansible.builtin.lineinfile:
+        path: /etc/modprobe.d/blacklist.conf
+        line: "blacklist nouveau"
+        search_string: "blacklist nouveau"
+        state: present
+        create: true
+        owner: root
+        group: root
+        mode: 0644
+      when: install_nvidia_vgpu
+
     - name: "Update initramfs images"
       ansible.builtin.command: update-initramfs -u -k all
       changed_when: false

@@ -32,6 +32,8 @@
       tags: ipmi_fan_control
     - role: gpu_passthrough
       tags: gpu_passthrough
+    - role: nvidia_vgpu
+      tags: nvidia_vgpu
     - role: terraform_user
       tags: terraform_user
     - role: admin_user
