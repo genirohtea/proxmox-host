@@ -2,9 +2,17 @@
 iso_urls:
   - base_url: "https://mirrors.ocf.berkeley.edu/opnsense//releases/{version}/OPNsense-{version}-dvd-amd64.iso.bz2"
     version: "24.1"
+    os_name: "OPNsense"
+    is_default: true
   - base_url: "https://enterprise.proxmox.com/iso/proxmox-backup-server_{version}.iso"
     version: "3.2-1"
+    os_name: "PBS"
+    is_default: true
   - base_url: "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-{version}-amd64-netinst.iso"
     version: "12.6.0"
+    os_name: "Debian"
+    is_default: true
   - base_url: "https://releases.ubuntu.com/{version}/ubuntu-{version}-live-server-amd64.iso"
     version: "24.04"
+    os_name: "Ubuntu"
+    is_default: true
