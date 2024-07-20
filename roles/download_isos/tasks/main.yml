@@ -5,10 +5,14 @@
   register: iso_folder_stat
 
 - name: "Fail if ISO folder does not exist"
+  tags:
+    - molecule-notest
   ansible.builtin.assert:
     that: iso_folder_stat.stat.exists
     fail_msg: "The ISO folder {{ iso_folder }} does not exist on the host."
 
 - name: "Download all of the ISOs"
+  tags:
+    - molecule-notest
   ansible.builtin.include_tasks: "download_iso.yml"
   loop: "{{ iso_urls }}"

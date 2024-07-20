@@ -1,5 +1,7 @@
 ---
 - name: Configure Proxmox for Terraform
+  tags:
+    - molecule-notest
   block:
     - name: "Check if TerraformProv role already exists"
       ansible.builtin.shell: >-

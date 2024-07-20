@@ -14,8 +14,6 @@
   register: iso_file
 
 - name: "Download ISO"
-  tags:
-    - molecule-notest
   when: not iso_file.stat.exists
   block:
     - name: "Download the ISO if it does not exist"
