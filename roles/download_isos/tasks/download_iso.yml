@@ -6,7 +6,7 @@
 
 - name: "Construct URL and filename"
   ansible.builtin.set_fact:
-    iso_filename: "{{ download_filename | regex_replace('\\.iso.*', '.iso') }}"
+    iso_filename: "{{ item.os_name }}-{{ item.version }}.iso"
 
 - name: "Check if ISO file already exists"
   ansible.builtin.stat:
@@ -19,8 +19,16 @@
     - name: "Download the ISO if it does not exist"
       ansible.builtin.get_url:
         url: "{{ iso_url }}"
+        dest: "{{ iso_folder }}/{{ iso_filename }}"
+        mode: "0644"
+      when: download_filename | regex_search('\.iso$')
+
+    - name: "Download the ISO if it does not exist"
+      ansible.builtin.get_url:
+        url: "{{ iso_url }}"
         dest: "{{ iso_folder }}/{{ download_filename }}"
         mode: "0644"
+      when: not download_filename | regex_search('\.iso$')
 
     - name: "Install bzip2 if the ISO file ends in .bz2"
       ansible.builtin.apt:
@@ -32,6 +40,20 @@
       ansible.builtin.command: "bzip2 -d {{ iso_folder }}/{{ download_filename }}"
       when: download_filename | regex_search('\.bz2$')
       changed_when: false
+
+    - name: "Rename the extracted ISO"
+      ansible.builtin.copy:
+        src: "{{ iso_folder }}/{{ download_filename | regex_replace('\\.iso.*', '.iso') }}"
+        dest: "{{ iso_folder }}/{{ iso_filename }}"
+        remote_src: true
+        mode: "0644"
+      when: download_filename | regex_search('\.bz2$')
+
+    - name: "Remove the extracted ISO"
+      ansible.builtin.file:
+        path: "{{ iso_folder }}/{{ download_filename | regex_replace('\\.iso.*', '.iso') }}"
+        state: absent
+      when: download_filename | regex_search('\.bz2$')
 
     - name: "Install tar if the ISO file ends in .tar.gz"
       ansible.builtin.apt:
@@ -48,7 +70,7 @@
     - name: "Extract the ISO file if it ends in .zip or .tar.gz"
       ansible.builtin.unarchive:
         src: "{{ iso_folder }}/{{ download_filename }}"
-        dest: "{{ iso_folder }}"
+        dest: "{{ iso_folder }}/{{ iso_filename }}"
         remote_src: true
         mode: "0644"
       when: download_filename | regex_search('\.zip$') or download_filename | regex_search('\.tar\.gz$')
@@ -58,3 +80,13 @@
         path: "{{ iso_folder }}/{{ download_filename }}"
         state: absent
       when: download_filename | regex_search('\.(bz2|tar\.gz|zip)$')
+
+# Create a symlink that points to the iso file
+# Handles case where we have multiple versions of the same OS
+- name: "Create a hardlink that points to the iso file"
+  ansible.builtin.file:
+    path: "{{ iso_folder }}/{{ item.os_name }}.iso"
+    src: "{{ iso_folder }}/{{ iso_filename }}"
+    state: hard
+    mode: "0644"
+  when: item.is_default
