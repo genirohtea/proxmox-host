@@ -2,6 +2,8 @@
 # tasks file for kernel_pinning
 
 - name: "Check if the kernel is pinned to the desired version"
+  tags:
+    - molecule-notest
   become: true
   block:
     - name: "Ensure pinned_kernel_version is provided"
@@ -33,6 +35,8 @@
         task_failed: true
 
 - name: "Pin the kernel"
+  tags:
+    - molecule-notest
   when: allow_reboot and not is_kernel_correctly_pinned
   become: true
   block:
