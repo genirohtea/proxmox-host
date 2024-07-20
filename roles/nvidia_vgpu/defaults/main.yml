@@ -1,0 +1,4 @@
+---
+# defaults file for nvidia_vgpu
+install_nvidia_vgpu: false
+allow_reboot: false

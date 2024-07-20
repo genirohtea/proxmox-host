@@ -1,0 +1,28 @@
+---
+- name: "Clone vgpu-proxmox repository"
+  ansible.builtin.git:
+    repo: "https://gitlab.com/polloloco/vgpu-proxmox.git"
+    dest: "/root/vgpu-proxmox"
+    version: eeca1f0990c917ae10ca0a3b0c71a7c94841e29a
+
+- name: "Clone vgpu_unlock-rs repository"
+  ansible.builtin.git:
+    repo: "https://github.com/mbilker/vgpu_unlock-rs"
+    dest: "/opt/vgpu_unlock-rs"
+    version: d116525334fa185019a861bc73aad84275100467
+
+- name: "Install Rust"
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    "curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal"
+  args:
+    chdir: /root
+  changed_when: false
+
+- name: "Build vgpu_unlock-rs"
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    "source /root/.cargo/env && cargo build --release"
+  args:
+    chdir: /opt/vgpu_unlock-rs
+  changed_when: false
