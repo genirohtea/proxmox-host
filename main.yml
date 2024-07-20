@@ -36,3 +36,5 @@
       tags: terraform_user
     - role: admin_user
       tags: admin_user
+    - role: download_isos
+      tags: download_isos

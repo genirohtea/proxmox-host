@@ -1,0 +1,14 @@
+---
+- name: "Assert that ISO folder exists"
+  ansible.builtin.stat:
+    path: "{{ iso_folder }}"
+  register: iso_folder_stat
+
+- name: "Fail if ISO folder does not exist"
+  ansible.builtin.assert:
+    that: iso_folder_stat.stat.exists
+    fail_msg: "The ISO folder {{ iso_folder }} does not exist on the host."
+
+- name: "Download all of the ISOs"
+  ansible.builtin.include_tasks: "download_iso.yml"
+  loop: "{{ iso_urls }}"
