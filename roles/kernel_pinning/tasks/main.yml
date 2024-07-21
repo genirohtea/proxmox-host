@@ -12,6 +12,14 @@
           - pinned_kernel_version is defined
         fail_msg: "User must specify a pinned_kernel_version"
 
+    # Example output:
+    # Automatically selected kernels:
+    # 6.5.13-3-pve
+    # 6.5.13-5-pve
+    # 6.8.4-3-pve
+
+    # Pinned kernel:
+    # 6.5.13-3-pve
     - name: "Get the pinned kernel version"
       shell: >-
         set -o pipefail;
@@ -23,11 +31,11 @@
 
     - name: "Check if the pinned kernel version matches the desired version"
       debug:
-        msg: "The kernel is pinned to: {{ pinned_kernel_version }}"
+        msg: "The kernel is pinned to: {{ pinned_kernel_output }}"
 
     - name: "Notify that kernel is already pinned"
       ansible.builtin.set_fact:
-        is_kernel_correctly_pinned: pinned_kernel_output.stdout.strip() == pinned_kernel_version
+        is_kernel_correctly_pinned: "{{ pinned_kernel_output.stdout.strip() == pinned_kernel_version }}"
 
   rescue:
     - name: "Failed to check if kernel was already pinned"

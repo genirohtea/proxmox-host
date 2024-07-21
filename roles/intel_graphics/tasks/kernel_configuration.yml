@@ -88,6 +88,9 @@
   debug:
     msg: "{{ dkms_status.stdout }}"
 
+# Potential error if you havent installed + pinned the right kernel:
+# Your kernel headers for kernel 6.5.11-8-pve cannot be found at /lib/modules/6.5.11-8-pve/build or /lib/modules/6.5.11-8-pve/source.
+# Please install the linux-headers-6.5.11-8-pve package or use the --kernelsourcedir option to tell DKMS where it's located
 - name: "Execute the 'dkms install' command for the i915-sriov-dkms module"
   ansible.builtin.command:
     cmd: >
