@@ -34,8 +34,8 @@
       tags: gpu_passthrough
     - role: nvidia_vgpu
       tags: nvidia_vgpu
-    - role: terraform_user
-      tags: terraform_user
+    # - role: terraform_user
+    #   tags: terraform_user
     - role: admin_user
       tags: admin_user
     - role: download_isos

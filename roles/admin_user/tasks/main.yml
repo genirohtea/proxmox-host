@@ -57,6 +57,39 @@
       command: "pveum user permissions {{ admin_username }}@pam"
       changed_when: false
 
+    - name: "Install the sudo form of root access"
+      ansible.builtin.apt:
+        package: sudo
+        state: present
+        update_cache: true
+      become: true
+      become_method: ansible.builtin.su # Default proxmox
+
+    # User must have sudo privlege for proxmox tasks to be compatible with terraform: bgp/proxmox
+    - name: "Ensure sudoers file includes admin user NOPASSWD for /sbin/pvesm"
+      ansible.builtin.lineinfile:
+        path: "/etc/sudoers"
+        state: present
+        line: "{{ admin_username }} ALL=(root) NOPASSWD: /sbin/pvesm"
+        validate: "visudo -cf %s"
+      become: true
+
+    - name: "Ensure sudoers file includes admin user NOPASSWD for /sbin/qm"
+      ansible.builtin.lineinfile:
+        path: "/etc/sudoers"
+        state: present
+        line: "{{ admin_username }} ALL=(root) NOPASSWD: /sbin/qm"
+        validate: "visudo -cf %s"
+      become: true
+
+    - name: "Ensure sudoers file includes admin user NOPASSWD for /usr/bin/tee /var/lib/vz/*"
+      ansible.builtin.lineinfile:
+        path: "/etc/sudoers"
+        state: present
+        line: "{{ admin_username }} ALL=(root) NOPASSWD: /usr/bin/tee /var/lib/vz/*"
+        validate: "visudo -cf %s"
+      become: true
+
   rescue:
     - name: "Administrator user creation failed"
       ansible.builtin.set_fact:
