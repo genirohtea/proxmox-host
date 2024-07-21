@@ -11,7 +11,7 @@
           - hostvars[inventory_hostname].bootloader_type in ['grub']
         fail_msg: "bootloader_type must be 'grub' systemd is currently unsupported. {{ hostvars }}"
 
-    - name: "Pin the current kernel"
+    - name: "Pin the required kernel"
       include_role:
         name: kernel_pinning
       vars:
