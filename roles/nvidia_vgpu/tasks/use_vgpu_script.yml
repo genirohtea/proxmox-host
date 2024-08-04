@@ -28,6 +28,57 @@
 # Example Output
 
 # Welcome to the Nvidia vGPU installer version 1.1 for Proxmox
+# This system is running Proxmox version 8.2.4 with kernel 6.5.13-3-pve
+
+# Select an option:
+
+# 1) New vGPU installation
+# 2) Upgrade vGPU installation
+# 3) Remove vGPU installation
+# 4) Download vGPU drivers
+# 5) License vGPU
+# 6) Exit
+
+# Enter your choice: 1
+
+# You are currently at step 1 of the installation process
+
+# Selected: New vGPU installation
+
+# [+] Making changes to APT for Proxmox version: 8
+# [+] Running APT Update
+
+# [?] Do you want to proceed with APT Dist-Upgrade ? (y/n): y
+
+# [+] Running APT Dist-Upgrade (...this might take some time)
+# [+] Installing packages
+# [+] Pinning kernel: 6.5.13-6-pve
+# [*] Found one Nvidia GPU in your system
+
+# NVIDIA Quadro P2000 is vGPU capable through vgpu_unlock with driver version 16
+
+# [+] Downloading vgpu-proxmox
+# [+] Downloading vgpu_unlock-rs
+# [+] Downloading Rust
+# [+] Source Rust
+# [+] Building vgpu_unlock-rs
+# [+] Creating vGPU files and directories
+# [+] Creating systemd folders
+# [+] Adding vgpu_unlock-rs library
+# [+] Systemctl daemon-reload
+# [+] Enable nvidia-vgpud.service
+# [+] Enable nvidia-vgpu-mgr.service
+# [+] Checking CPU architecture
+# [+] Your CPU vendor id: AuthenticAMD
+# [-] AMD IOMMU options are already set in GRUB_CMDLINE_LINUX_DEFAULT
+# [+] Updating GRUB
+# [-] Kernel modules already present
+# [-] Nouveau already blacklisted
+# [+] Updating initramfs
+
+# Step 1 completed. Reboot your machine to resume the installation.
+
+# Welcome to the Nvidia vGPU installer version 1.1 for Proxmox
 # This system is running Proxmox version 8.2.4 with kernel 6.5.13-6-pve
 
 # You are currently at step 2 of the installation process
