@@ -45,6 +45,9 @@ die() {
 
 allow_reboot='false'
 install_intel_vtd='false'
+use_ssh_pass='false'
+admin_user=''
+admin_pass=''
 tags=''
 parse_params() {
   while :; do
@@ -58,8 +61,17 @@ parse_params() {
       tags="${2-}"
       shift
       ;;
+    -a | --admin_user)
+      admin_user="${2-}"
+      shift
+      ;;
+    -p | --admin_pass)
+      admin_pass="${2-}"
+      shift
+      ;;
     -r | --allow_reboot) allow_reboot='true' ;;           # example flag
     -i | --install_intel_vtd) install_intel_vtd='true' ;; # example flag
+    -s | --use_ssh_pass) use_ssh_pass='true' ;;           # example flag
     -H | --host)
       host="${2-}"
       shift
@@ -76,6 +88,7 @@ parse_params() {
   # check required params and arguments
   [[ -z "${allow_reboot-}" ]] && die "Missing required parameter: allow_reboot"
   [[ -z "${install_intel_vtd-}" ]] && die "Missing required parameter: install_intel_vtd"
+  [[ -z "${use_ssh_pass-}" ]] && die "Missing required parameter: use_ssh_pass"
   [[ -z "${host-}" ]] && die "Missing required parameter: host"
 
   return 0
@@ -91,6 +104,7 @@ msg "Read parameters:"
 msg "- arguments: ${args[*]-}"
 msg "- allow_reboot: ${allow_reboot}"
 msg "- install_intel_vtd: ${install_intel_vtd}"
+msg "- use_ssh_pass: ${use_ssh_pass}"
 
 read -p "Please confirm arguments: " -n 1 -r
 echo # move to a new line
@@ -106,9 +120,13 @@ if [[ -n "${tags-}" ]]; then
   tags="--tags ${tags}"
 fi
 
+if [[ "${use_ssh_pass}" == "true" ]]; then
+  ssh_pass="--ask-pass"
+fi
+
 pushd "${ansible_dir}"
 
 # shellcheck disable=SC2086
-ansible-playbook main.yml --ask-pass ${verbosity:-} ${tags} --extra-vars '{"allow_reboot": '"${allow_reboot}"', "install_intel_vtd": '"${install_intel_vtd}"' }' --limit "${host}"
+ansible-playbook main.yml ${ssh_pass:-} ${verbosity:-} ${tags} --extra-vars '{"allow_reboot": '"${allow_reboot}"', "install_intel_vtd": '"${install_intel_vtd}"', "admin_username": '"${admin_user}"', "admin_password": '"${admin_pass}"' }' --limit "${host}" -i inventory/hosts.yaml
 
 popd

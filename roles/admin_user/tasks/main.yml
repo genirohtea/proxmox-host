@@ -1,5 +1,12 @@
 ---
 - name: Add an administrative user
+  when:
+    - admin_username is defined
+    - admin_password is defined
+    - admin_username is string
+    - admin_password is string
+    - admin_username | length > 0
+    - admin_password | length > 0
   block:
     - name: Add the administrative user as a linux user
       become: true
