@@ -1,2 +1,3 @@
 # Dont actually commit the inventory which may leak IPs
 hosts.ini
+hosts.yaml
