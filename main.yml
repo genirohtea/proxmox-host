@@ -1,15 +1,6 @@
 ---
 - name: "Install the various proxmox roles"
   hosts: all
-  vars_prompt:
-    - name: admin_username
-      prompt: What is the admin username?
-      private: false
-
-    - name: admin_password
-      prompt: What is admin user password?
-      private: true
-
   pre_tasks:
     - name: Verify Ansible is version 2.15 or above. (If this fails you may need to update Ansible)
       assert:
