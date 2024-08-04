@@ -2,3 +2,4 @@
 # defaults file for nvidia_vgpu
 install_nvidia_vgpu: false
 allow_reboot: false
+required_kernel_version: 6.5.13-5-pve

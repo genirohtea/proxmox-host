@@ -3,9 +3,56 @@
 # cd proxmox-vgpu-installer
 # bash proxmox-installer.sh
 
+- name: "Install git"
+  ansible.builtin.apt:
+    package: git
+    state: present
+    update_cache: true
+  become: true
+  become_method: ansible.builtin.su # Default proxmox
+
+- name: "Install megatools which is used to get the drivers"
+  ansible.builtin.apt:
+    package: megatools
+    state: present
+    update_cache: true
+  become: true
+  become_method: ansible.builtin.su # Default proxmox
+
 - name: "Clone the vgpu installer script"
   ansible.builtin.git:
     repo: "https://github.com/genirohtea/proxmox-vgpu-installer"
-    dest: /root/proxmx-vgpu-installer
+    dest: /root/proxmox-vgpu-installer
     update: true
     version: e98d0991f60556f131c67bddfe24e006d6b6412e
+# Example Output
+
+# Welcome to the Nvidia vGPU installer version 1.1 for Proxmox
+# This system is running Proxmox version 8.2.4 with kernel 6.5.13-6-pve
+
+# You are currently at step 2 of the installation process
+
+# Proceeding with the installation
+
+# [+] AMD IOMMU Enabled
+# [-] You are running Proxmox version 8.2.4
+# [-] Your Nvidia GPU is supported by driver version 16.x
+
+# Select vGPU driver version:
+
+# 1: 17.0 (550.54.10)
+# 2: 16.4 (535.161.05)
+# 3: 16.2 (535.129.03)
+# 4: 16.1 (535.104.06)
+# 5: 16.0 (535.54.06)
+
+# Enter your choice: 2
+
+# [-] Driver version: NVIDIA-Linux-x86_64-535.161.05-vgpu-kvm.run
+# [-] Moved NVIDIA-Linux-x86_64-535.161.05-vgpu-kvm.run to NVIDIA-Linux-x86_64-535.161.05-vgpu-kvm.run.bak
+# [+] Downloading vGPU NVIDIA-Linux-x86_64-535.161.05-vgpu-kvm.run host driver using megadl
+# Downloaded NVIDIA-Linux-x86_64-535.161.05-vgpu-kvm.run
+# [+] MD5 checksum matched. Downloaded file is valid.
+# [-] Moved NVIDIA-Linux-x86_64-535.161.05-vgpu-kvm-custom.run to NVIDIA-Linux-x86_64-535.161.05-vgpu-kvm-custom.run.bak
+# [+] Patching driver
+# [+] Installing patched driver

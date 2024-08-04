@@ -2,7 +2,35 @@
 # tasks file for nvidia_gpu
 
 - name: "Install Nvidia VGPU script"
+  when: hostvars[inventory_hostname].install_nvidia_vgpu and allow_reboot
   block:
+    - name: "Verify that the bootloader type is either GRUB or systemd determiend by color of boot screen."
+      assert:
+        that:
+          - hostvars[inventory_hostname].bootloader_type is defined
+
+    - name: "Pin the required kernel"
+      include_role:
+        name: kernel_pinning
+      vars:
+        pinned_kernel_version: "{{ required_kernel_version }}"
+
+    - name: "Retrieve the version of the currently running kernel"
+      ansible.builtin.command: uname -r
+      register: kernel_version
+      changed_when: false
+
+    - name: "Strip the '-pve' suffix from the kernel version"
+      ansible.builtin.set_fact:
+        kernel_version_num: "{{ kernel_version.stdout | replace('-pve', '') }}"
+
+    - name: "Set kernel version"
+      ansible.builtin.set_fact:
+        kernel_version: "{{ kernel_version.stdout }}"
+
+    - name: "Display the kernel version number"
+      ansible.builtin.debug:
+        var: kernel_version_num
     - name: "Setup the vGPU script"
       ansible.builtin.import_tasks: use_vgpu_script.yml
 
@@ -10,28 +38,27 @@
     - name: "Nvidia VGPU script download failed"
       ansible.builtin.set_fact:
         task_failed: true
+# - name: "Install Nvidia VGPU"
+#   when: install_nvidia_vgpu and allow_reboot
+#   become: true
+#   block:
+#     # The manual method requires access to NVIDIA drivers.
+#     # It also is more brittle since I have to maintain it.
 
-- name: "Install Nvidia VGPU"
-  when: install_nvidia_vgpu and allow_reboot
-  become: true
-  block:
-    # The manual method requires access to NVIDIA drivers.
-    # It also is more brittle since I have to maintain it.
+#     - name: "Install the required packages"
+#       ansible.builtin.import_tasks: install_packages.yml
+#     - name: "Download the unlock tool"
+#       ansible.builtin.import_tasks: download_unlock.yml
+#     - name: "Create the unlock config files"
+#       ansible.builtin.import_tasks: create_vgpu_unlock_config.yml
+#     - name: "Enable IOMMU"
+#       include_role:
+#         name: iommu_enable
+#     - name: "Load required vfio drivers"
+#       include_role:
+#         name: vfio_driver_fix
 
-    - name: "Install the required packages"
-      ansible.builtin.import_tasks: install_packages.yml
-    - name: "Download the unlock tool"
-      ansible.builtin.import_tasks: download_unlock.yml
-    - name: "Create the unlock config files"
-      ansible.builtin.import_tasks: create_vgpu_unlock_config.yml
-    - name: "Enable IOMMU"
-      include_role:
-        name: iommu_enable
-    - name: "Load required vfio drivers"
-      include_role:
-        name: vfio_driver_fix
-
-  rescue:
-    - name: "Nvidia VGPU manual install failed"
-      ansible.builtin.set_fact:
-        task_failed: true
+#   rescue:
+#     - name: "Nvidia VGPU manual install failed"
+#       ansible.builtin.set_fact:
+#         task_failed: true
