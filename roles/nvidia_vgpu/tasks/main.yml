@@ -2,7 +2,10 @@
 # tasks file for nvidia_gpu
 
 - name: "Install Nvidia VGPU script"
-  when: hostvars[inventory_hostname].install_nvidia_vgpu and allow_reboot
+  when:
+    - hostvars[inventory_hostname].install_nvidia_vgpu is defined
+    - hostvars[inventory_hostname].install_nvidia_vgpu
+    - allow_reboot
   block:
     - name: "Verify that the bootloader type is either GRUB or systemd determiend by color of boot screen."
       assert:

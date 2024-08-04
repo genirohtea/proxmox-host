@@ -3,7 +3,10 @@
 # https://www.reddit.com/r/coral_nvr/comments/1aw2lj4/having_trouble_getting_coral_usb_to_work_on/
 
 - name: "Setup Coral USB"
-  when: hostvars[inventory_hostname].install_coral_usb and allow_reboot
+  when:
+    - hostvars[inventory_hostname].install_coral_usb is defined
+    - hostvars[inventory_hostname].install_coral_usb
+    - allow_reboot
   block:
     - name: "Check if Coral USB is plugged in"
       ansible.builtin.command: lsusb
