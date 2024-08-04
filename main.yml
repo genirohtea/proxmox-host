@@ -25,6 +25,8 @@
       tags: gpu_passthrough
     - role: nvidia_vgpu
       tags: nvidia_vgpu
+    - role: coral
+      tags: coral
     # - role: terraform_user
     #   tags: terraform_user
     - role: admin_user

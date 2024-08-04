@@ -1,0 +1,71 @@
+---
+# tasks file for coral
+# https://www.reddit.com/r/coral_nvr/comments/1aw2lj4/having_trouble_getting_coral_usb_to_work_on/
+
+- name: "Setup Coral USB"
+  when: hostvars[inventory_hostname].install_coral_usb and allow_reboot
+  block:
+    - name: "Check if Coral USB is plugged in"
+      ansible.builtin.command: lsusb
+      register: lsusb_output
+      changed_when: false
+
+    - name: "Set fact for Coral USB presence"
+      ansible.builtin.set_fact:
+        uninitialized_coral_usb_present: "{{ '1a6e:089a' in lsusb_output.stdout }}"
+
+    - name: "Assert Coral USB device presence"
+      ansible.builtin.assert:
+        that: "'1a6e:089a' in lsusb_output.stdout or '18d1:9302' in lsusb_output.stdout"
+        fail_msg: "Neither initial Coral USB device (1a6e:089a) nor set up Coral device (18d1:9302) found in lsusb output"
+        success_msg: "Coral USB device detected (either needs setup or is already set up)"
+
+    - name: "Proceed with Coral USB setup"
+      when: uninitialized_coral_usb_present
+      block:
+        - name: "Install dfu-util"
+          ansible.builtin.apt:
+            name: dfu-util
+            state: present
+
+        - name: "Download Coral firmware"
+          ansible.builtin.get_url:
+            url: https://github.com/google-coral/libedgetpu/raw/master/driver/usb/apex_latest_single_ep.bin
+            dest: /tmp/apex_latest_single_ep.bin
+            mode: "0644"
+
+        - name: "Flash Coral firmware"
+          ansible.builtin.command: dfu-util -D /tmp/apex_latest_single_ep.bin -d 1a6e:089a -R
+          changed_when: true
+
+        - name: "Reboot the system"
+          ansible.builtin.reboot:
+            msg: "Force a reboot to allow the firmware to be loaded"
+            connect_timeout: 5
+            reboot_timeout: 300
+            pre_reboot_delay: 5
+            post_reboot_delay: 30
+            test_command: uptime
+
+      rescue:
+        - name: "Coral USB setup failed"
+          ansible.builtin.set_fact:
+            task_failed: true
+
+    - name: "Run lsusb command"
+      ansible.builtin.command: lsusb
+      register: lsusb_output
+      changed_when: false
+
+    - name: "Display lsusb output for USB passthrough configuration"
+      ansible.builtin.debug:
+        var: lsusb_output.stdout_lines
+
+    - name: "Assert that Google Coral device is present"
+      ansible.builtin.assert:
+        that: "'18d1:9302' in lsusb_output.stdout"
+
+  rescue:
+    - name: "Coral USB detection failed"
+      ansible.builtin.set_fact:
+        task_failed: true
