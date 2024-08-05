@@ -68,6 +68,46 @@
       ansible.builtin.assert:
         that: "'18d1:9302' in lsusb_output.stdout"
 
+    # Example output:
+    #     Bus 003 Device 004: ID 0b1f:03ee Insyde Software Corp. RNDIS/Ethernet Gadget
+    #     Bus 003 Device 003: ID 0557:9241 ATEN International Co., Ltd SMCI HID KM
+    #     Bus 003 Device 002: ID 1d6b:0107 Linux Foundation USB Virtual Hub
+    #     Bus 008 Device 003: ID 154b:00ed PNY USB 3.1 FD
+    #     Bus 008 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+    #     Bus 007 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+    #     Bus 006 Device 003: ID 18d1:9302 Google Inc.
+    #     Bus 006 Device 002: ID 154b:1007 PNY USB 3.2.2 FD
+
+    - name: "Extract bus and device ID for Google Coral"
+      ansible.builtin.set_fact:
+        coral_usb_info: "{{ lsusb_output.stdout | regex_search('Bus\\s+(\\d+)\\s+Device\\s+(\\d+).*Google Inc\\.', '\\1', '\\2') | list }}"
+
+    - name: "Display Google Coral USB information"
+      ansible.builtin.debug:
+        msg: "Google Coral USB - Bus: {{ coral_usb_info[0] }}, Device: {{ coral_usb_info[1] }}"
+      when: coral_usb_info | length == 2
+
+    - name: "List USB device file details"
+      ansible.builtin.command:
+        cmd: "ls -al /dev/bus/usb/{{ coral_usb_info[0] }}/{{ coral_usb_info[1] }}"
+      register: usb_device_details
+      when: coral_usb_info | length == 2
+      changed_when: false
+
+    - name: "Parse USB device details"
+      ansible.builtin.set_fact:
+        usb_major_minor: "{{ usb_device_details.stdout.split()[4].split(',') }}"
+      when: coral_usb_info | length == 2 and usb_device_details.stdout is defined
+
+    - name: "Display LXC configuration instructions"
+      ansible.builtin.debug:
+        msg:
+          - "To configure your LXC container for this USB device, add the following lines to your LXC configuration:"
+          - "1. Allow access to the USB device:"
+          - "   lxc.cgroup.devices.allow: c {{ usb_major_minor[0] }}:* rwm"
+          - "2. Mount the USB device in the container:"
+          - "   lxc.mount.entry: /dev/bus/usb/{{ coral_usb_info[0] }}/{{ coral_usb_info[1] }} dev/bus/usb/{{ coral_usb_info[0] }}/{{ coral_usb_info[1] }} none bind,optional,create=file"
+      when: coral_usb_info | length == 2 and usb_major_minor is defined
   rescue:
     - name: "Coral USB detection failed"
       ansible.builtin.set_fact:
