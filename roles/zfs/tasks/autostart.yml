@@ -1,0 +1,31 @@
+---
+- name: Create systemd service file for ZFS SMART check script
+  ansible.builtin.template:
+    src: templates/zfs_pool_check.service.j2
+    dest: /etc/systemd/system/zfs_pool_check.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create systemd timer file for ZFS SMART check script
+  ansible.builtin.template:
+    src: templates/zfs_pool_check.timer.j2
+    dest: /etc/systemd/system/zfs_pool_check.timer
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Reload systemd to recognize the new service and timer
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable ZFS SMART check timer to start on boot
+  ansible.builtin.systemd:
+    name: zfs_pool_check.timer
+    enabled: true
+
+- name: Start ZFS SMART check timer
+  ansible.builtin.systemd:
+    name: zfs_pool_check.timer
+    state: started
+  register: zfs_pool_check_timer_status

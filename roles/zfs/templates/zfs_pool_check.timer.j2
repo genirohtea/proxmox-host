@@ -1,0 +1,9 @@
+[Unit]
+Description=Run ZFS SMART Check Script every day at 3am
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
