@@ -1,0 +1,59 @@
+---
+# tasks file for zfs
+
+# Example pool rename:
+# zpool export vm-nvme-pool; zpool import vm-nvme-pool pool-vm-nvme
+# nano /etc/pve/storage.cfg
+
+# Example RAID-0
+# zpool create surveillancepool /dev/sdg /dev/sdh
+
+# Example pool trim
+#  zpool set autotrim=on vm-nvme-pool
+
+# tasks file for configuring ZFS SMART check
+- name: "Setup ZFS + Smart utilities"
+  block:
+    - name: "Install required dependencies for zfs/smart"
+      package:
+        name: "{{ item }}"
+        state: present
+      become: true
+      with_items:
+        - smartmontools # Needed to check the smart status of the hdds
+        - lshw # Needed to get the device id of the hdds
+
+    - name: "Install required dependencies for ZFS SMART check"
+      package:
+        name: "{{ item }}"
+        state: present
+      become: true
+      with_items:
+        - smartmontools
+        - zfsutils-linux
+
+    - name: "Create script directory for ZFS SMART check"
+      ansible.builtin.file:
+        path: "/etc/zfs_smart_check/scripts"
+        state: directory
+        owner: root
+        group: root
+        mode: 0755
+      register: zfs_pool_script_dir
+
+    - name: "Copy ZFS SMART check script to the host"
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ zfs_pool_script_dir.path }}/"
+        owner: root
+        group: root
+        mode: 0755
+      with_fileglob:
+        - "files/*"
+
+    - name: "Configure ZFS SMART check to auto start"
+      ansible.builtin.import_tasks: autostart.yml
+  rescue:
+    - name: "IPMI install failed"
+      ansible.builtin.set_fact:
+        task_failed: true

@@ -33,3 +33,5 @@
       tags: admin_user
     - role: download_isos
       tags: download_isos
+    - role: zfs
+      tags: zfs
