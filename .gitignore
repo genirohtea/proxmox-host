@@ -22,9 +22,5 @@ kubeconfig
 
 # Terraform related cache/leak files
 **/.terraform
-**/.terraform.lock.hcl
-**/.terraform.tfstate.*
-**/terraform.tfstate
-**/terraform.tfstate.backup
 **/*.auto.tfvars
-.aider*
+**/*.tfvars
