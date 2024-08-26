@@ -1,0 +1,6 @@
+---
+- name: "Test the role"
+  hosts: localhost
+  remote_user: root
+  roles:
+    - gmail_notifications

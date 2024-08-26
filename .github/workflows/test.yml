@@ -55,6 +55,11 @@ jobs:
       - name: Install test dependencies.
         run: pip3 install -r requirements.txt
 
+      - name: Install collection dependencies.
+        run: ansible-galaxy collection install -r collections/requirements.yml
+      - name: Install role dependencies.
+        run: ansible-galaxy role install -r collections/requirements.yml
+
       - name: Run Molecule tests.
         run: molecule test
         env:
