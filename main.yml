@@ -35,3 +35,10 @@
       tags: download_isos
     - role: zfs
       tags: zfs
+    - role: google-drive-mount
+      tags: google-drive-mount
+      vars:
+        folder_names:
+          - "proxmox_etc_backups/{{ inventory_hostname }}/"
+        site: "{{ hostvars[inventory_hostname].site }}"
+        deploy_env: "prod"
