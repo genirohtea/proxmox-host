@@ -1,0 +1,63 @@
+---
+name: Test
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-molecule-directory:
+    runs-on: ubuntu-latest
+    outputs:
+      molecule_exists: ${{ steps.check_molecule.outputs.molecule_exists }}
+    steps:
+      - name: Check out the codebase
+        uses: actions/checkout@v4
+        with:
+          path: "${{ github.repository }}"
+
+      - name: Check if molecule directory exists
+        id: check_molecule
+        run: |
+          if [ -d "${{ github.repository }}/molecule" ]; then
+            echo "molecule_exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "molecule_exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+  test-molecule:
+    needs: check-molecule-directory
+    if: needs.check-molecule-directory.outputs.molecule_exists == 'true'
+    defaults:
+      run:
+        # Working directory is a relative path from github.workspace
+        # Workpace: /home/runner/work/<repo>/<repo>
+        # Workng Drectory: /home/runner/work/<repo>/<repo>/<user>/<repo>
+        working-directory: "${{ github.repository }}"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        distro:
+          - ubuntu2004
+    steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v4
+        with:
+          path: "${{ github.repository }}"
+
+      - name: Set up Python 3.
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install test dependencies.
+        run: pip3 install -r requirements.txt
+
+      - name: Run Molecule tests.
+        run: molecule test
+        env:
+          PY_COLORS: '1'
+          ANSIBLE_FORCE_COLOR: '1'
+          MOLECULE_DISTRO: ${{ matrix.distro }}
+          BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}

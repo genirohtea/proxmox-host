@@ -1,0 +1,16 @@
+[env]
+# Arbitrary Environment Variables
+GENIROH_PROJECT_NAME = 'github-actions-template'
+
+[tools]
+# Specify tooling versions
+# Examples:
+# python = '3.12.2'
+# opentofu = '1.8.1'
+
+[plugins]
+# specify a custom repo url
+# note this will only be used if the plugin does not already exist
+
+
+[settings]
