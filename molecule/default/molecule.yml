@@ -9,7 +9,6 @@ platforms:
     # Proxmox 8.1 is currently based on bookworm
     # Proxmox images doesn't like testing on an ARM base platform
     # image: makedie/proxmox_ve:8.0.4
-
     command: ${MOLECULE_DOCKER_COMMAND:-""}
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
@@ -21,8 +20,11 @@ platforms:
     pre_build_image: true
 provisioner:
   name: ansible
+  config_options:
+    defaults:
+      remote_tmp: /tmp
   env:
-    ANSIBLE_VERBOSITY: 1
+    ANSIBLE_VERBOSITY: 3
   playbooks:
     converge: ${MOLECULE_PLAYBOOK:-converge.yml}
   inventory:
