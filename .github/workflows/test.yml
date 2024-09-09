@@ -38,8 +38,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        # These are the distros that ansible will be run against
         distro:
-          - debian12
+          - debian12 # Since most infrastructure is running on debian
     steps:
       - name: Check out the codebase.
         uses: actions/checkout@v4
