@@ -7,7 +7,7 @@ platforms:
   - name: "proxmoxhost-${image:-debian12}-${tag:-latest}-${TOX_ENVNAME}"
     image: "geerlingguy/docker-${MOLECULE_DISTRO:-debian12}-ansible:latest"
     # Proxmox 8.1 is currently based on bookworm
-    # Proxmox images doesnt like testing on an ARM base platform
+    # Proxmox images doesn't like testing on an ARM base platform
     # image: makedie/proxmox_ve:8.0.4
 
     command: ${MOLECULE_DOCKER_COMMAND:-""}
