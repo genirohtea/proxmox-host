@@ -1,20 +1,19 @@
 ---
-name: Release Tagging
+name: Create Release
 on:
   push:
     branches:
       - main
 
-permissions:
-  contents: write
-  pull-requests: write
-
-
 jobs:
-  release-please:
+  release-create:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
-      - uses: google-github-actions/release-please-action@v4
+      - name: Generate release, changelog.
+        uses: googleapis/release-please-action@v4.1.3
         with:
           # this assumes that you have created a personal access token
           # (PAT) and configured it as a GitHub action secret named
@@ -26,3 +25,19 @@ jobs:
           # this is a built-in strategy in release-please, see "Action Inputs"
           # for more options
           release-type: simple
+
+  release-issues:
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v4
+
+      - name: "TODO to Issue"
+        uses: "alstr/todo-to-issue-action@v4.13.3"
+        with:
+          PROJECTS_SECRET: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
+          # Add ignore regex here
+          # IGNORE: "plugins.*"

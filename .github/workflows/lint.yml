@@ -1,0 +1,28 @@
+---
+name: Lint
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  lint-precommit:
+    permissions:
+      contents: read
+
+    # pre-commit action doesn't support custom working directories
+    # pre-commit.ci doesn't work on private repos
+    # Therefore, run in the default github workspace for this action
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run the pre-commit linters.
+        uses: pre-commit/action@v3.0.1
