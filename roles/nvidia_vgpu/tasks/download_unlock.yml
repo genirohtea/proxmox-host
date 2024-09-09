@@ -3,13 +3,13 @@
   ansible.builtin.git:
     repo: "https://gitlab.com/polloloco/vgpu-proxmox.git"
     dest: "/root/vgpu-proxmox"
-    version: eeca1f0990c917ae10ca0a3b0c71a7c94841e29a
+    version: eeca1f0990c917ae10ca0a3b0c71a7c94841e29a # pragma: allowlist secret
 
 - name: "Clone vgpu_unlock-rs repository"
   ansible.builtin.git:
     repo: "https://github.com/mbilker/vgpu_unlock-rs"
     dest: "/opt/vgpu_unlock-rs"
-    version: d116525334fa185019a861bc73aad84275100467
+    version: d116525334fa185019a861bc73aad84275100467 # pragma: allowlist secret
 
 - name: "Install Rust"
   ansible.builtin.shell: >-

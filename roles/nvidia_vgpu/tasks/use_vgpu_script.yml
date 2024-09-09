@@ -24,7 +24,7 @@
     repo: "https://github.com/genirohtea/proxmox-vgpu-installer"
     dest: /root/proxmox-vgpu-installer
     update: true
-    version: e98d0991f60556f131c67bddfe24e006d6b6412e
+    version: e98d0991f60556f131c67bddfe24e006d6b6412e # pragma: allowlist secret
 # Example Output
 
 # Welcome to the Nvidia vGPU installer version 1.1 for Proxmox
