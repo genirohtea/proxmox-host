@@ -10,5 +10,5 @@ install_intel_vtd: false
 allow_reboot: false
 
 # Apr 7 2024 SHA
-i915_sriov_dkms_git_sha: 3d7a1b3fa4706d8da316d8e794d54db96856a2b9
+i915_sriov_dkms_git_sha: 3d7a1b3fa4706d8da316d8e794d54db96856a2b9 # pragma: allowlist secret
 required_kernel_version: 6.5.13-3-pve
