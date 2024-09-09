@@ -72,7 +72,7 @@
       become: true
       become_method: ansible.builtin.su # Default proxmox
 
-    # User must have sudo privlege for proxmox tasks to be compatible with terraform: bgp/proxmox
+    # User must have sudo privilege for proxmox tasks to be compatible with terraform: bgp/proxmox
     - name: "Ensure sudoers file includes admin user NOPASSWD for /sbin/pvesm"
       ansible.builtin.lineinfile:
         path: "/etc/sudoers"

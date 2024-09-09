@@ -1,7 +1,7 @@
 Intel Graphics VT-d for Proxmox
 =========
 
-Installes Intel GPU passthrough based on this [guide](https://www.derekseaman.com/2023/11/proxmox-ve-8-1-windows-11-vgpu-vt-d-passthrough-with-intel-alder-lake.html)
+Installs Intel GPU passthrough based on this [guide](https://www.derekseaman.com/2023/11/proxmox-ve-8-1-windows-11-vgpu-vt-d-passthrough-with-intel-alder-lake.html)
 
 Requirements
 ------------
