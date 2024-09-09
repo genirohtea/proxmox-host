@@ -1,3 +1,20 @@
 ---
 - name: Converge
+  hosts: all
+  pre_tasks:
+    - name: Install bws sdk
+      ansible.builtin.pip:
+        # 0.1.1 has error: 'BitwardenClient' object has no attribute 'access_token_login'
+        name: bitwarden-sdk==0.1.0
+        state: present
+      delegate_to: localhost
+
+    - name: Show ansible version
+      ansible.builtin.debug:
+        msg: "Ansible Version: {{ ansible_version.full }}"
+
+- name: Run playbook
   ansible.builtin.import_playbook: ../../main.yml
+  vars:
+    allow_reboot: true
+    pinned_kernel_version: "6.5.13-3-pve"

@@ -1,19 +1,32 @@
 ---
+dependency:
+  name: galaxy
 driver:
   name: docker
 platforms:
-  - name: instance
-    pre_build_image: true
-    image: python:3.12.2-bookworm # Proxmox 8.1 is currently based on bookworm
+  - name: "proxmoxhost-${image:-debian12}-${tag:-latest}-${TOX_ENVNAME}"
+    image: "geerlingguy/docker-${MOLECULE_DISTRO:-debian12}-ansible:latest"
+    # Proxmox 8.1 is currently based on bookworm
     # Proxmox images doesnt like testing on an ARM base platform
     # image: makedie/proxmox_ve:8.0.4
+
+    command: ${MOLECULE_DOCKER_COMMAND:-""}
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
 provisioner:
   name: ansible
   env:
     ANSIBLE_VERBOSITY: 1
+  playbooks:
+    converge: ${MOLECULE_PLAYBOOK:-converge.yml}
   inventory:
-    links:
-      group_vars: ../../group_vars
-  extra_vars:
-    allow_reboot: true
-    pinned_kernel_version: "6.5.13-3-pve"
+    host_vars:
+      instance:
+        allow_reboot: true
+        pinned_kernel_version: "6.5.13-3-pve"
