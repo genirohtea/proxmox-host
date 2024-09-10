@@ -4,3 +4,7 @@ collections:
   - name: ansible.utils
   - name: community.general
   - name: ansible.posix
+roles:
+  - name: google_drive_mount
+    src: https://github.com/genirohtea/google-drive-mount
+    version: main

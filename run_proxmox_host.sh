@@ -31,6 +31,7 @@ Available options:
 -t, --tags      Specify Ansible tags to run specific tasks
 -r, --allow_reboot  Allow the script to reboot the host if necessary
 -i, --install_intel_vtd  Install Intel VT-d support
+-S, --use_ssh_pass Use password based ssh authentication
 -H, --host      Specify the host from the Ansible inventory to run the playbook on
 EOF
   exit
@@ -71,7 +72,7 @@ parse_params() {
       ;;
     -r | --allow_reboot) allow_reboot='true' ;;           # example flag
     -i | --install_intel_vtd) install_intel_vtd='true' ;; # example flag
-    -s | --use_ssh_pass) use_ssh_pass='true' ;;           # example flag
+    -S | --use_ssh_pass) use_ssh_pass='true' ;;           # example flag
     -H | --host)
       host="${2-}"
       shift

@@ -1,0 +1,118 @@
+---
+- name: "Setup Gmail notifications"
+  block:
+    # kvk-gmailproxnotify-<env>-<site>-email
+    - name: "Get secret from BWS: gmail_from_email"
+      when: gmail_from_email is not defined
+      ansible.builtin.set_fact:
+        gmail_from_email: "{{ lookup('bitwarden.secrets.lookup', bws_gmail_from_email) }}"
+
+    # kvk-gmailproxnotify-<env>-<site>-apppassword
+    # Generated here: https://myaccount.google.com/apppasswords
+    # Requires 2FA to be enabled on the relevant account
+    - name: "Get secret from BWS: gmail_app_password"
+      when: gmail_app_password is not defined
+      ansible.builtin.set_fact:
+        gmail_app_password: "{{ lookup('bitwarden.secrets.lookup', bws_gmail_app_password) }}"
+
+    # kvk-gmailproxnotify-<env>-<site>-sitedomain
+    - name: "Get secret from BWS: gmail_sitedomain"
+      when: gmail_sitedomain is not defined
+      ansible.builtin.set_fact:
+        gmail_sitedomain: "{{ lookup('bitwarden.secrets.lookup', bws_gmail_sitedomain) }}"
+
+    - name: "Update the apt package index"
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: "Install required packages"
+      ansible.builtin.apt:
+        name:
+          - libsasl2-modules
+          - mailutils
+          - postfix-pcre
+        state: present
+
+    - name: "Create sasl_passwd file with Gmail credentials"
+      ansible.builtin.copy:
+        dest: /etc/postfix/sasl_passwd
+        content: |
+          smtp.gmail.com {{ gmail_from_email }}:{{ gmail_app_password }}
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: "Generate the sasl_passwd.db file"
+      ansible.builtin.command:
+        cmd: postmap hash:/etc/postfix/sasl_passwd
+      args:
+        creates: /etc/postfix/sasl_passwd.db
+
+    - name: "Create smtp_header_checks file with header fixes"
+      ansible.builtin.copy:
+        dest: /etc/postfix/smtp_header_checks
+        content: |
+          /^From:.*/ REPLACE From: {{ inventory_hostname }}-alert <{{ inventory_hostname }}-alert@{{ gmail_sitedomain }}>
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: "Generate the smtp_header_checks.db file"
+      ansible.builtin.command:
+        cmd: postmap hash:/etc/postfix/smtp_header_checks
+      args:
+        creates: /etc/postfix/smtp_header_checks.db
+
+    - name: "Ensure old relayhost line is commented out"
+      ansible.builtin.replace:
+        path: /etc/postfix/main.cf
+        regexp: "^relayhost =$"
+        replace: "#relayhost ="
+        backup: yes
+
+    - name: "Ensure postfix main.cf contains necessary configuration"
+      ansible.builtin.blockinfile:
+        path: /etc/postfix/main.cf
+        block: | # pragma: allowlist secret
+          relayhost = smtp.gmail.com:587
+          smtp_use_tls = yes
+          smtp_sasl_auth_enable = yes
+          smtp_sasl_security_options =
+          smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+          smtp_tls_CAfile = /etc/ssl/certs/Entrust_Root_Certification_Authority.pem
+          smtp_tls_session_cache_database = btree:/var/lib/postfix/smtp_tls_session_cache
+          smtp_tls_session_cache_timeout = 3600s
+          smtp_header_checks = pcre:/etc/postfix/smtp_header_checks
+        backup: yes
+
+    - name: "Reload postfix to apply configuration changes"
+      ansible.builtin.service:
+        name: postfix
+        state: reloaded
+
+    - name: "Send test email to verify configuration"
+      community.general.mail:
+        host: localhost
+        port: 25
+        to: "{{ gmail_from_email }}"
+        subject: "Proxmox Email Notification Test"
+        body: "This is a test email from Proxmox to verify Gmail notifications."
+
+    - name: "Send test mail from proxmox mail forwarder to verify configuration"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        echo "Test email from Proxmox: $(hostname)" | /usr/bin/proxmox-mail-forward
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: "Ensure root user has a valid email (set via Proxmox web UI)"
+      ansible.builtin.pause:
+        prompt: "Please set a valid email for the root user in the Proxmox web UI under Datacenter > Permissions > Users. The email used here will be the one that receives the proxmox notifications (since the root user is the default receiver)."
+      when:
+        - hostvars[inventory_hostname].is_root_email_set is not defined
+
+  rescue:
+    - name: "Gmail install failed"
+      ansible.builtin.set_fact:
+        task_failed: true
