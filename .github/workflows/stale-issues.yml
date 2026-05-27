@@ -1,4 +1,5 @@
 ---
+# MANAGED BY TEMPLATE (copied 2026-05-26 from 6bed4) — do not edit. Sync from the source template; user must manage overwrites.
 name: Close Stale
 on:
   schedule:
@@ -11,7 +12,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/stale@v9
+      - uses: actions/stale@v10
         with:
           days-before-stale: 120
           days-before-close: 60
@@ -28,3 +29,5 @@ jobs:
           close-pr-message: |
             This pr has been closed due to inactivity. If you feel this is in error, please reopen the issue or file a new issue with the relevant details.
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+# END MANAGED TEMPLATE — add custom content below

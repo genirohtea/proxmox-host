@@ -1,0 +1,95 @@
+---
+# MANAGED BY TEMPLATE (copied 2026-05-26 from 6bed4) — do not edit. Sync from the source template; user must manage overwrites.
+# Self-hosted Renovate runner. Reads `.github/renovate.json5` and opens
+# update PRs for GitHub Actions, pre-commit hooks, and mise tools.
+# Avoids the need to install the Renovate GitHub App on every consumer repo.
+#
+# Auth: mints a short-lived installation token from the shared automation
+# GitHub App so that Renovate PRs trigger downstream CI workflows (PRs
+# opened with the built-in GITHUB_TOKEN are suppressed by GitHub's
+# loop-prevention rule). The same App credentials (`GH_APP_ID` and
+# `GH_APP_PRIVATE_KEY`) back every automation workflow in this template
+# (release-please, todo-to-issue, etc.) — do not provision a separate App
+# per workflow. See the README section "Authorizing automation with a
+# GitHub App".
+name: Renovate
+
+on:
+  schedule:
+    # Mondays at 08:00 PST = 16:00 UTC (matches the schedule in renovate.json5).
+    # Note: GitHub cron is fixed-offset UTC and won't shift for PDT; the
+    # renovate.json5 timezone setting handles DST for the actual PR window.
+    - cron: "0 16 * * 1"
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: "Renovate log level"
+        required: false
+        default: "info"
+        type: choice
+        options:
+          - debug
+          - info
+          - warn
+          - error
+      dryRun:
+        description: "Dry run (no PRs created)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "null"
+          - "extract"
+          - "lookup"
+          - "full"
+  push:
+    branches:
+      - main
+    paths:
+      # Re-run when the Renovate config itself changes so updates pick up
+      # immediately rather than waiting for the next scheduled tick.
+      - ".github/renovate.json5"
+      - ".github/workflows/renovate.yml"
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: renovate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Renovate needs full history to compute changelogs and base branches.
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Self-hosted Renovate
+        uses: renovatebot/github-action@v46.1.13
+        with:
+          configurationFile: .github/renovate.json5
+          token: ${{ steps.app-token.outputs.token }}
+        env:
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+          RENOVATE_DRY_RUN: ${{ inputs.dryRun || 'false' }}
+          # Limit Renovate to the current repo (the App installation
+          # token may have access to multiple repos).
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_AUTODISCOVER: "false"
+# END MANAGED TEMPLATE — add custom content below

@@ -1,17 +1,72 @@
 ---
-extends: default
+# MANAGED BY TEMPLATE (copied 2026-05-26 from 6bed4) — do not edit. Sync from the source template; user must manage overwrites.
+###########################################
+# These are the rules used for            #
+# linting all the yaml files in the stack #
+# NOTE:                                   #
+# You can disable a single line with:     #
+# # yamllint disable-line                 #
+# You can disable a block with:           #
+# # yamllint disable                      #
+# ...                                     #
+# # yamllint enable                       #
+# You can target a specific rule:         #
+# # yamllint disable-line rule:line-length#
+###########################################
 
+# Inherits all defaults from yamllint's built-in "default" profile, then
+# overrides only the rules listed below.
+# Full rule reference: https://yamllint.readthedocs.io/en/stable/rules.html
+extends: default
 rules:
+  # Only "true"/"false" (lowercase) are valid boolean-like values.
+  # Prevents ambiguous truthy strings like "yes", "on", "True".
   truthy:
     allowed-values: ["true", "false"]
-  line-length:
-    max: 120
+
+  # Warn (don't error) when a file uses Windows-style CRLF line endings.
+  new-lines:
     level: warning
-  braces: # Linter is broken on for brace spacing
-    min-spaces-inside: -1
-    max-spaces-inside: -1
+    type: unix
+
+  # Long lines are common in GitHub Actions (URLs, shell commands); warn
+  # rather than error so CI stays green while still surfacing outliers.
+  line-length:
+    max: 500
+    level: warning
+
+  # Allow a single space between code and an inline comment ("foo: bar # note").
+  # Matches prettier's style: https://github.com/prettier/prettier/pull/10926
   comments:
-    min-spaces-from-content: 1 # Used to follow prettier standard: https://github.com/prettier/prettier/pull/10926
+    min-spaces-from-content: 1
+
+  # Allow {a: 1}.
+  braces:
+    forbid: false
+    min-spaces-inside: 0
+    max-spaces-inside: 0
+    min-spaces-inside-empty: 0 # {} is fine
+    max-spaces-inside-empty: 0
+
+  # Allow [a, b].
+  brackets:
+    forbid: false
+    min-spaces-inside: 0
+    max-spaces-inside: 0
+    min-spaces-inside-empty: 0 # [] is fine
+    max-spaces-inside-empty: 0
+
+  # Example pass: [a, b, c]   Example fail: [a ,b,c]
+  commas:
+    max-spaces-before: 0
+    min-spaces-after: 1
+    max-spaces-after: 1
+
+# Files/directories that yamllint skips entirely.
+# galaxy.yml is Ansible Galaxy metadata with its own schema quirks.
+# .github/ contains workflow YAML that often uses GitHub-specific constructs
+# (e.g. expression syntax ${{ }}) that trip up generic YAML linters.
 ignore:
   - galaxy.yml
   - .github/
+# END MANAGED TEMPLATE — add custom content below

@@ -70,9 +70,9 @@
       ^deb {{ item.uri }} \w+{{ item.repo }} main contrib
     line: "deb {{ item.uri }} {{ ansible_distribution_release }}{{ item.repo }} main contrib"
   with_items:
-    - { uri: "http://ftp.us.debian.org/debian", repo: "" }
-    - { uri: "http://ftp.us.debian.org/debian", repo: "-updates" }
-    - { uri: "http://security.debian.org", repo: "-security" }
+    - {uri: "http://ftp.us.debian.org/debian", repo: ""}
+    - {uri: "http://ftp.us.debian.org/debian", repo: "-updates"}
+    - {uri: "http://security.debian.org", repo: "-security"}
   when: file_status.stat.exists
 
 - name: "Update package cache (debian)"

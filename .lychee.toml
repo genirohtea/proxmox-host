@@ -1,5 +1,9 @@
 # MANAGED BY TEMPLATE (copied 2026-05-26 from 6bed4) — do not edit. Sync from the source template; user must manage overwrites.
-# These are supported funding model platforms
----
-github: user
+# lychee config — https://lychee.cli.rs/usage/config/
+exclude = []
+accept = [200, 206, 403, 429]
+max_retries = 3
+retry_wait_time = 5
+timeout = 30
+
 # END MANAGED TEMPLATE — add custom content below

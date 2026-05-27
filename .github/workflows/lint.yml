@@ -1,4 +1,5 @@
 ---
+# MANAGED BY TEMPLATE (copied 2026-05-26 from 6bed4) — do not edit. Sync from the source template; user must manage overwrites.
 name: Lint
 on:
   pull_request:
@@ -11,18 +12,21 @@ jobs:
     permissions:
       contents: read
 
-    # pre-commit action doesn't support custom working directories
-    # pre-commit.ci doesn't work on private repos
-    # Therefore, run in the default github workspace for this action
+    # prek (Rust reimplementation of pre-commit) reads the same
+    # .pre-commit-config.yaml. Run it in the default github workspace.
     runs-on: ubuntu-latest
     steps:
       - name: Check out the codebase.
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Set up Python 3.
-        uses: actions/setup-python@v5
+      # The `ty` hook in .pre-commit-config.yaml shells out to `uvx ty check`
+      # (language: system), so `uv` must be on PATH before prek runs.
+      - name: Install uv (provides uvx for the ty hook).
+        uses: astral-sh/setup-uv@v7
+
+      - name: Run the pre-commit linters via prek.
+        uses: j178/prek-action@v2.0.3
         with:
-          python-version: '3.x'
+          extra-args: --all-files
 
-      - name: Run the pre-commit linters.
-        uses: pre-commit/action@v3.0.1
+# END MANAGED TEMPLATE — add custom content below

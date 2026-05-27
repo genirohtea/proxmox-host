@@ -23,7 +23,7 @@
 
     - name: "Update the apt package index"
       ansible.builtin.apt:
-        update_cache: yes
+        update_cache: true
 
     - name: "Install required packages"
       ansible.builtin.apt:
@@ -68,7 +68,7 @@
         path: /etc/postfix/main.cf
         regexp: "^relayhost =$"
         replace: "#relayhost ="
-        backup: yes
+        backup: true
 
     - name: "Ensure postfix main.cf contains necessary configuration"
       ansible.builtin.blockinfile:
@@ -83,7 +83,7 @@
           smtp_tls_session_cache_database = btree:/var/lib/postfix/smtp_tls_session_cache
           smtp_tls_session_cache_timeout = 3600s
           smtp_header_checks = pcre:/etc/postfix/smtp_header_checks
-        backup: yes
+        backup: true
 
     - name: "Reload postfix to apply configuration changes"
       ansible.builtin.service:

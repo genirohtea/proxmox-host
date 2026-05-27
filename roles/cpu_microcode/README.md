@@ -1,26 +1,21 @@
-CPU Microcode
-=========
+# CPU Microcode
 
 This role adds non-free repositories and installs CPU microcode packages for Intel or AMD processors.
 
-Requirements
-------------
+## Requirements
 
 Requires a Proxmox Host/Filesystem
 
-Role Variables
---------------
+## Role Variables
 
 - `amd_microcode_package`: The name of the AMD microcode package coming from Debian APT repositories.
 - `intel_microcode_package`: The name of the Intel microcode package coming from Debian APT repositories.
 
-Dependencies
-------------
+## Dependencies
 
 No dependencies
 
-Example Playbook
-----------------
+## Example Playbook
 
 Here is an example of how to use this role:
 
@@ -30,12 +25,10 @@ Here is an example of how to use this role:
     - cpu_microcode
 ```
 
-License
--------
+## License
 
 BSD-3-Clause
 
-Author Information
-------------------
+## Author Information
 
 This role was created in 2023 by genirohtea.

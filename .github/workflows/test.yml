@@ -1,4 +1,5 @@
 ---
+# MANAGED BY TEMPLATE (copied 2026-05-26 from 6bed4) — do not edit. Sync from the source template; user must manage overwrites.
 name: Test
 on:
   pull_request:
@@ -7,13 +8,14 @@ on:
       - main
 
 jobs:
-  check-molecule-directory:
+  check-directories:
     runs-on: ubuntu-latest
     outputs:
       molecule_exists: ${{ steps.check_molecule.outputs.molecule_exists }}
+      tests_exists: ${{ steps.check_tests.outputs.tests_exists }}
     steps:
       - name: Check out the codebase
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: "${{ github.repository }}"
 
@@ -26,9 +28,37 @@ jobs:
             echo "molecule_exists=false" >> "${GITHUB_OUTPUT}"
           fi
 
+      - name: Check if tests directory exists
+        id: check_tests
+        run: |
+          if [ -d "${{ github.repository }}/tests" ]; then
+            echo "tests_exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "tests_exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+  test-pytest:
+    needs: check-directories
+    if: needs.check-directories.outputs.tests_exists == 'true'
+    defaults:
+      run:
+        working-directory: "${{ github.repository }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the codebase
+        uses: actions/checkout@v6
+        with:
+          path: "${{ github.repository }}"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8
+
+      - name: Run pytest
+        run: uv run --with typer --with pytest pytest tests/
+
   test-molecule:
-    needs: check-molecule-directory
-    if: needs.check-molecule-directory.outputs.molecule_exists == 'true'
+    needs: check-directories
+    if: needs.check-directories.outputs.molecule_exists == 'true'
     defaults:
       run:
         # Working directory is a relative path from github.workspace
@@ -43,22 +73,17 @@ jobs:
           - debian12 # Since most infrastructure is running on debian
     steps:
       - name: Check out the codebase.
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: "${{ github.repository }}"
 
       - name: Set up Python 3.
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.x'
 
       - name: Install test dependencies.
         run: pip3 install -r requirements.txt
-
-      - name: Install collection dependencies.
-        run: ansible-galaxy collection install -r collections/requirements.yml
-      - name: Install role dependencies.
-        run: ansible-galaxy role install -r collections/requirements.yml
 
       - name: Run Molecule tests.
         run: molecule test
@@ -67,3 +92,5 @@ jobs:
           ANSIBLE_FORCE_COLOR: '1'
           MOLECULE_DISTRO: ${{ matrix.distro }}
           BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+
+# END MANAGED TEMPLATE — add custom content below

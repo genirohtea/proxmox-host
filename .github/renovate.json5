@@ -1,0 +1,45 @@
+// MANAGED BY TEMPLATE (copied 2026-05-26 from 6bed4) — do not edit. Sync from the source template; user must manage overwrites.
+// Renovate replaces Dependabot for this template. It updates GitHub Actions
+// pinned in workflows, pre-commit hook revs, and tool versions in `.mise.toml`.
+// Schema: https://docs.renovatebot.com/renovate-schema.json
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separateMajorReleases",
+  ],
+  "schedule": [
+    "after 8am and before 9am on monday",
+  ],
+  "labels": [
+    "dependencies",
+  ],
+  "timezone": "America/Los_Angeles",
+  // The pre-commit manager is not enabled by default — opt in so hook revs
+  // in `.pre-commit-config.yaml` are kept current.
+  "pre-commit": {
+    "enabled": true,
+  },
+  // mise tool versions in `.mise.toml` are picked up by the `mise` manager,
+  // which is on by default but listed here for visibility.
+  "mise": {
+    "enabled": true,
+  },
+  "github-actions": {
+    "enabled": true,
+  },
+  "packageRules": [
+    {
+      "description": "Group all non-major updates into a single weekly PR to cut review noise.",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+      ],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-non-major",
+    },
+  ],
+}

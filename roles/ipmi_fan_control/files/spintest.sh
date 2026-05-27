@@ -55,10 +55,10 @@ function read_fan_data {
   MODE=$((0x${MODE// /}))           # strip leading space and decimate
   # Text for mode
   case $MODE in
-  0) MODEt="Standard" ;;
-  1) MODEt="Full" ;;
-  2) MODEt="Optimal" ;;
-  4) MODEt="HeavyIO" ;;
+    0) MODEt="Standard" ;;
+    1) MODEt="Full" ;;
+    2) MODEt="Optimal" ;;
+    4) MODEt="HeavyIO" ;;
   esac
 
   # Get reported fan speed in RPM from sensor data repository.

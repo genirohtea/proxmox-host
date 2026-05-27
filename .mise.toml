@@ -1,6 +1,8 @@
+# MANAGED BY TEMPLATE (copied 2026-05-26 from 6bed4) — do not edit. Sync from the source template; user must manage overwrites.
+
 [env]
 # Arbitrary Environment Variables
-GENIROH_PROJECT_NAME = 'github-actions-template'
+PROJECT_NAME = 'proxmox-host'
 
 [tools]
 # Specify tooling versions
@@ -14,3 +16,5 @@ GENIROH_PROJECT_NAME = 'github-actions-template'
 
 
 [settings]
+
+# END MANAGED TEMPLATE — add custom content below

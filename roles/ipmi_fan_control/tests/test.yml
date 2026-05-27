@@ -3,4 +3,4 @@
   hosts: localhost
   remote_user: root
   roles:
-    - { role: ipmi_fan_control }
+    - {role: ipmi_fan_control}

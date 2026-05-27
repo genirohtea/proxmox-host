@@ -53,33 +53,33 @@ tags=''
 parse_params() {
   while :; do
     case "${1-}" in
-    -h | --help) usage ;;
-    -v | --verbose)
-      set -x
-      verbosity="-vvv"
-      ;;
-    -t | --tags)
-      tags="${2-}"
-      shift
-      ;;
-    -a | --admin_user)
-      admin_user="${2-}"
-      shift
-      ;;
-    -p | --admin_pass)
-      admin_pass="${2-}"
-      shift
-      ;;
-    -r | --allow_reboot) allow_reboot='true' ;;           # example flag
-    -i | --install_intel_vtd) install_intel_vtd='true' ;; # example flag
-    -S | --use_ssh_pass) use_ssh_pass='true' ;;           # example flag
-    -H | --host)
-      host="${2-}"
-      shift
-      ;;
+      -h | --help) usage ;;
+      -v | --verbose)
+        set -x
+        verbosity="-vvv"
+        ;;
+      -t | --tags)
+        tags="${2-}"
+        shift
+        ;;
+      -a | --admin_user)
+        admin_user="${2-}"
+        shift
+        ;;
+      -p | --admin_pass)
+        admin_pass="${2-}"
+        shift
+        ;;
+      -r | --allow_reboot) allow_reboot='true' ;;           # example flag
+      -i | --install_intel_vtd) install_intel_vtd='true' ;; # example flag
+      -S | --use_ssh_pass) use_ssh_pass='true' ;;           # example flag
+      -H | --host)
+        host="${2-}"
+        shift
+        ;;
 
-    -?*) die "Unknown option: $1" ;;
-    *) break ;;
+      -?*) die "Unknown option: $1" ;;
+      *) break ;;
     esac
     shift
   done

@@ -1,4 +1,5 @@
 ---
+# MANAGED BY TEMPLATE (copied 2026-05-26 from 6bed4) — do not edit. Sync from the source template; user must manage overwrites.
 exclude_paths:
   # default paths
   - '.cache/'
@@ -24,3 +25,11 @@ skip_list:
 
 warn_list:
   - yaml[line-length]
+
+use_default_rules: true
+
+# Install collections from requirements.yml so syntax-check can resolve
+# community.general.* modules.
+offline: false
+
+# END MANAGED TEMPLATE — add custom content below

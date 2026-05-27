@@ -1,3 +1,4 @@
+---
 galaxy_info:
   author: geniroh
   description: Sets up gmail notifications from proxmox.

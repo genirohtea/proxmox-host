@@ -1,25 +1,20 @@
-ZFS
-=========
+# ZFS
 
 A role to setup ZFS monitoring on the proxmox host.
 
-Requirements
-------------
+## Requirements
 
 None.
 
-Role Variables
---------------
+## Role Variables
 
 None.
 
-Dependencies
-------------
+## Dependencies
 
 This role does not have any dependencies on other Galaxy roles.
 
-Example Playbook
-----------------
+## Example Playbook
 
 Here is an example of how to use this role with variables passed in as parameters:
 
@@ -29,12 +24,10 @@ Here is an example of how to use this role with variables passed in as parameter
     - { role: zfs }
 ```
 
-License
--------
+## License
 
 BSD-3-Clause
 
-Author Information
-------------------
+## Author Information
 
 This role was created in 2023 by geniroh.

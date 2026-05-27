@@ -1,3 +1,4 @@
+# MANAGED BY TEMPLATE (copied 2026-05-26 from 6bed4) — do not edit. Sync from the source template; user must manage overwrites.
 root = true
 [*]
 indent_style = space
@@ -7,3 +8,11 @@ trim_trailing_whitespace = true
 insert_final_newline = true
 end_of_line = lf
 max_line_length = off
+
+# Markdown continuation indents inside ordered lists align with the marker
+# (e.g. "1. " requires 3-space hanging indent), which conflicts with a
+# strict multiple-of-2 check. mdformat owns markdown indentation.
+[*.md]
+indent_size = unset
+
+# END MANAGED TEMPLATE — add custom content below

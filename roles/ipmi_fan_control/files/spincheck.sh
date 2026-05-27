@@ -66,10 +66,10 @@ function manage_data {
   MODE=$((0x${MODE// /}))           # strip leading space and decimate
   # Text for mode
   case $MODE in
-  0) MODEt="Standard" ;;
-  4) MODEt="HeavyIO" ;;
-  2) MODEt="Optimal" ;;
-  1) MODEt="Full" ;;
+    0) MODEt="Standard" ;;
+    4) MODEt="HeavyIO" ;;
+    2) MODEt="Optimal" ;;
+    1) MODEt="Full" ;;
   esac
   # Get reported fan speed in RPM.
   # Get reported fan speed in RPM from sensor data repository.
