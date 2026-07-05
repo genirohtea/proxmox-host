@@ -21,6 +21,11 @@
         url: "{{ iso_url }}"
         dest: "{{ iso_folder }}/{{ iso_filename }}"
         mode: "0644"
+        timeout: 60
+      register: iso_download
+      until: iso_download is succeeded
+      retries: 3
+      delay: 10
       when: download_filename | regex_search('\.iso$')
 
     - name: "Download the ISO if it does not exist"
@@ -28,6 +33,11 @@
         url: "{{ iso_url }}"
         dest: "{{ iso_folder }}/{{ download_filename }}"
         mode: "0644"
+        timeout: 60
+      register: compressed_download
+      until: compressed_download is succeeded
+      retries: 3
+      delay: 10
       when: not download_filename | regex_search('\.iso$')
 
     - name: "Install bzip2 if the ISO file ends in .bz2"
@@ -88,5 +98,9 @@
     path: "{{ iso_folder }}/{{ item.os_name }}.iso"
     src: "{{ iso_folder }}/{{ iso_filename }}"
     state: hard
+    # Repoint the stable "<os>.iso" link when the default version changes;
+    # without force the module errors if the link already targets an older ISO
+    # ("Cannot link, different hard link exists at destination").
+    force: true
     mode: "0644"
   when: item.is_default
