@@ -1,5 +1,14 @@
 ---
-# Installed using ansible-galaxy collection -r requirements.txt
+# Install collections:  ansible-galaxy collection install -r collections/requirements.yml
+# Install roles:         ansible-galaxy role install -r collections/requirements.yml
+#
+# The google_drive_mount role declares no dependencies of its own (meta/main.yml
+# has `dependencies: []` and it ships no meta/requirements.yml), so ansible-galaxy
+# will not auto-install what it needs. Its one runtime dependency not already
+# covered by the collections below is listed explicitly:
+#   - stefangweichinger.ansible_rclone : installs/configures rclone (include_role)
+# Its Bitwarden secret lookups use community.general.bitwarden_secrets_manager,
+# which the community.general collection below already provides.
 collections:
   - name: ansible.utils
   - name: community.general
@@ -8,3 +17,6 @@ roles:
   - name: google_drive_mount
     src: https://github.com/genirohtea/google-drive-mount
     version: main
+  # Runtime dependency of the google_drive_mount role (installs rclone):
+  - name: stefangweichinger.ansible_rclone
+    version: "0.2.6"
