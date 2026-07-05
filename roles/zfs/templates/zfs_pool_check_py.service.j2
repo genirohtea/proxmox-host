@@ -1,0 +1,6 @@
+[Unit]
+Description=ZFS SMART Check Script (Python)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /etc/zfs_smart_check/scripts/zfs_pool_check.py --log-file /var/log/zfs_pool_check.log

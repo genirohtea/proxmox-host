@@ -3,8 +3,8 @@ Description=Fan Control Service
 After=network.target
 
 [Service]
-ExecStart=/bin/bash /etc/ipmi_fan_control/scripts/spinpid2.sh
-ExecStartPost=/bin/bash -c 'if ! pgrep -f /etc/ipmi_fan_control/scripts/spinpid2.sh > /dev/null; then logger -p user.error "Fan control script is not running"; fi'
+ExecStart=/usr/bin/python3 /etc/ipmi_fan_control/scripts/spinpid2.py
+ExecStartPost=/bin/bash -c 'if ! pgrep -f /etc/ipmi_fan_control/scripts/spinpid2.py > /dev/null; then logger -p user.error "Fan control script is not running"; fi'
 Restart=always
 RestartSec=10
 
