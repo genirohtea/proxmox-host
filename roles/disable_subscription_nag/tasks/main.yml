@@ -3,8 +3,21 @@
 
 # Disable the scubscription nag
 
+- name: "Download pve-fake-subscription"
+  # GitHub release assets are addressable by tag only (v0.0.11), and tags can be moved to a
+  # different commit. The tag currently points at commit 31cd2b874692d8a00d6a22b02281cbe0c77b9519
+  # (version 0.0.11, 2024/10/26). To pin the actual installed content we verify the .deb against
+  # its sha256 (published in the release's sha256sum.txt), so a moved tag / changed asset fails.
+  ansible.builtin.get_url:
+    url: https://github.com/Jamesits/pve-fake-subscription/releases/download/v0.0.11/pve-fake-subscription_0.0.11+git-1_all.deb # yamllint disable-line rule:line-length
+    dest: /tmp/pve-fake-subscription_0.0.11+git-1_all.deb
+    checksum: sha256:4ea3aa7a84ed95065cd10f3e7bdbacd1c7c684d3c01105e0926045ed412de363
+    mode: "0644"
+  become: true
+  become_method: ansible.builtin.su
+
 - name: "Install pve-fake-subscription"
   ansible.builtin.apt:
-    deb: https://github.com/Jamesits/pve-fake-subscription/releases/download/v0.0.9/pve-fake-subscription_0.0.9+git-1_all.deb # yamllint disable-line rule:line-length
+    deb: /tmp/pve-fake-subscription_0.0.11+git-1_all.deb
   become: true
   become_method: ansible.builtin.su
