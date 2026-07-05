@@ -5,7 +5,7 @@
     - name: "Get secret from BWS: gmail_from_email"
       when: gmail_from_email is not defined
       ansible.builtin.set_fact:
-        gmail_from_email: "{{ lookup('bitwarden.secrets.lookup', bws_gmail_from_email) }}"
+        gmail_from_email: "{{ lookup('community.general.bitwarden_secrets_manager', 'ec943392-680d-4073-b1cc-b1d8002ed30c').value }}" # yamllint disable-line rule:line-length
 
     # kvk-gmailproxnotify-<env>-<site>-apppassword
     # Generated here: https://myaccount.google.com/apppasswords
@@ -13,13 +13,13 @@
     - name: "Get secret from BWS: gmail_app_password"
       when: gmail_app_password is not defined
       ansible.builtin.set_fact:
-        gmail_app_password: "{{ lookup('bitwarden.secrets.lookup', bws_gmail_app_password) }}"
+        gmail_app_password: "{{ lookup('community.general.bitwarden_secrets_manager', '1ec9734a-8846-44ed-ab79-b1d800322d4f').value }}" # yamllint disable-line rule:line-length
 
     # kvk-gmailproxnotify-<env>-<site>-sitedomain
     - name: "Get secret from BWS: gmail_sitedomain"
       when: gmail_sitedomain is not defined
       ansible.builtin.set_fact:
-        gmail_sitedomain: "{{ lookup('bitwarden.secrets.lookup', bws_gmail_sitedomain) }}"
+        gmail_sitedomain: "{{ lookup('community.general.bitwarden_secrets_manager', 'ff28e31a-d406-4f36-953c-b1d8003fd2b1').value }}" # yamllint disable-line rule:line-length
 
     - name: "Update the apt package index"
       ansible.builtin.apt:
@@ -98,13 +98,33 @@
         subject: "Proxmox Email Notification Test"
         body: "This is a test email from Proxmox to verify Gmail notifications."
 
+    # PVE 9 / trixie moved this helper from /usr/bin to /usr/libexec, so locate
+    # it instead of hard-coding a path that only exists on PVE 8.
+    - name: "Locate the proxmox-mail-forward helper"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /usr/libexec/proxmox-mail-forward
+        - /usr/bin/proxmox-mail-forward
+      register: proxmox_mail_forward_candidates
+
+    - name: "Select the proxmox-mail-forward binary path"
+      ansible.builtin.set_fact:
+        proxmox_mail_forward_bin: >-
+          {{ proxmox_mail_forward_candidates.results
+          | selectattr('stat.exists')
+          | map(attribute='stat.path')
+          | list | first }}
+      when: proxmox_mail_forward_candidates.results | selectattr('stat.exists') | list | length > 0
+
     - name: "Send test mail from proxmox mail forwarder to verify configuration"
       ansible.builtin.shell: >-
         set -o pipefail;
-        echo "Test email from Proxmox: $(hostname)" | /usr/bin/proxmox-mail-forward
+        echo "Test email from Proxmox: $(hostname)" | {{ proxmox_mail_forward_bin }}
       changed_when: false
       args:
         executable: /bin/bash
+      when: proxmox_mail_forward_bin is defined
 
     - name: "Ensure root user has a valid email (set via Proxmox web UI)"
       ansible.builtin.pause:
