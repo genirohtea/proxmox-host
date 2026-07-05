@@ -1,0 +1,62 @@
+---
+# Settings for spinpid2.py (dual fan-zone controller).
+# Values copied from the original spinpid2.config.
+# This file is validated against spinpid2.schema.yaml at startup.
+
+output:
+  # ipmitool command. For a VM you may need remote options, e.g.
+  #   "ipmitool -H <host> -U <user> -P <password>"
+  # Leave null to auto-detect ipmitool on PATH.
+  ipmitool: null
+  # Main log file. Relative paths are resolved against this settings file's
+  # directory (so ../spinpid2.log matches the original script location).
+  log_file: ../spinpid2.log
+  # Also echo log output to the console/stdout (good for testing).
+  console: true
+  # CPU output is sent to a separate log for interim cycles. It can get big,
+  # so turn off after testing.
+  cpu_log_enable: false
+  cpu_log: ../cpu.log
+
+fan:
+  # Supermicro says:
+  #   Zone 0 - CPU/System fans (headers FAN1, FAN2, ...)
+  #   Zone 1 - Peripheral fans (headers FANA, FANB, ...)
+  # Default here puts drive-cooling fans on FAN1-4 and CPU fan on FANA.
+  zone_cpu: 0
+  zone_periph: 1
+  # Min/max duty cycle to avoid stalling or running flat out.
+  duty_cpu_min: 5
+  duty_cpu_max: 100
+  duty_periph_min: 20
+  duty_periph_max: 100
+  # Measured fan RPMs (via spintest.sh) at 30% and 100% duty cycle.
+  # rpm_cpu_* is for FANA if zone_cpu=1 or FAN4 if zone_cpu=0; rpm_periph_* is
+  # for the other fan.
+  rpm_cpu_30: 2660
+  rpm_cpu_max: 4340
+  rpm_periph_30: 560
+  rpm_periph_max: 1680
+  # How to determine the current fan duty (% of full power):
+  #   1 -> read it from the board (normal)
+  #   0 -> assume it is where it was last set (for boards that misreport)
+  how_duty: 1
+
+drive:
+  # Setpoint mean drive temperature (C).
+  setpoint: 40
+  # Interval for checking drives (main cycle; minutes). Drives change
+  # temperature slowly; 5 minutes is usually frequent enough.
+  interval_minutes: 5
+  # Tunable PID constants for drive control (see tuning notes in spinpid2.sh).
+  kp: 4
+  kd: 40
+
+cpu:
+  # Interval for checking the CPU (seconds). 1 to 12 may be appropriate.
+  interval_seconds: 5
+  # Reference temperature (C) for scaling CPU duty (NOT a setpoint). At and
+  # below this temperature the CPU demands the minimum duty cycle.
+  ref: 54
+  # Additional duty-cycle percentage points per degree above ref.
+  scale: 6

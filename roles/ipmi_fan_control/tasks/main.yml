@@ -49,6 +49,8 @@
         - ipmitool
         - smartmontools # Needed to check the smart status of the hdds
         - lshw # Needed to get the device id of the hdds
+        - python3-yaml # Needed by spinpid2.py to read its YAML settings
+        - python3-jsonschema # Needed by spinpid2.py to validate its settings
 
     # Solving `IANA PEN registry open failed: No such file or directory`
     # https://forum.proxmox.com/threads/ipmi-tool-error-after-v8-upgrade.129334/
@@ -78,6 +80,7 @@
         mode: 0700
       with_fileglob:
         - "files/*"
+      register: fan_control_scripts
 
     - name: "Get the current ipmi sensor readings as a test"
       ansible.builtin.command: ipmitool sdr
@@ -88,8 +91,36 @@
       ansible.builtin.debug:
         var: current_ipmi_readings
 
-    - name: "Configure ipmi fan control to auto start"
-      ansible.builtin.import_tasks: autostart.yml
+    - name: Create systemd service file for fan control script
+      ansible.builtin.template:
+        src: templates/ipmi_fan_control.service.j2
+        dest: /etc/systemd/system/ipmi_fan_control.service
+        owner: root
+        group: root
+        mode: "0600"
+      register: fan_control_unit
+
+    - name: Reload systemd to recognize the new service
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Enable fan control service to start on boot
+      become: true
+      ansible.builtin.systemd:
+        name: ipmi_fan_control
+        enabled: true
+
+    # Restart (not just start) when the scripts or unit file change so that a
+    # new version - e.g. switching from spinpid2.sh to spinpid2.py - takes
+    # effect immediately instead of only after a reboot.
+    # Check using `journalctl -u ipmi_fan_control.service`
+    - name: Start or restart fan control service
+      become: true
+      ansible.builtin.systemd:
+        name: ipmi_fan_control
+        state: "{{ 'restarted' if (fan_control_scripts is changed or fan_control_unit is changed) else 'started' }}"
+      register: fan_control_service_status
 
   rescue:
     - name: "IPMI install failed"

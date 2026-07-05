@@ -1,0 +1,109 @@
+---
+# JSON Schema (draft-07) for spinpid2.settings.yaml.
+# Used by spinpid2.py to validate the settings at startup.
+$schema: "http://json-schema.org/draft-07/schema#"
+title: spinpid2 settings
+type: object
+additionalProperties: false
+required: [output, fan, drive, cpu]
+properties:
+
+  output:
+    type: object
+    additionalProperties: false
+    required: [ipmitool, log_file, console, cpu_log_enable, cpu_log]
+    properties:
+      ipmitool:
+        type: [string, "null"]
+        description: ipmitool command (may include remote options); null auto-detects.
+      log_file:
+        type: string
+      console:
+        type: boolean
+      cpu_log_enable:
+        type: boolean
+      cpu_log:
+        type: string
+
+  fan:
+    type: object
+    additionalProperties: false
+    required:
+      - zone_cpu
+      - zone_periph
+      - duty_cpu_min
+      - duty_cpu_max
+      - duty_periph_min
+      - duty_periph_max
+      - rpm_cpu_30
+      - rpm_cpu_max
+      - rpm_periph_30
+      - rpm_periph_max
+      - how_duty
+    properties:
+      zone_cpu:
+        type: integer
+        minimum: 0
+      zone_periph:
+        type: integer
+        minimum: 0
+      duty_cpu_min:
+        type: integer
+        minimum: 0
+        maximum: 100
+      duty_cpu_max:
+        type: integer
+        minimum: 0
+        maximum: 100
+      duty_periph_min:
+        type: integer
+        minimum: 0
+        maximum: 100
+      duty_periph_max:
+        type: integer
+        minimum: 0
+        maximum: 100
+      rpm_cpu_30:
+        type: integer
+        minimum: 0
+      rpm_cpu_max:
+        type: integer
+        minimum: 0
+      rpm_periph_30:
+        type: integer
+        minimum: 0
+      rpm_periph_max:
+        type: integer
+        minimum: 0
+      how_duty:
+        type: integer
+        enum: [0, 1]
+
+  drive:
+    type: object
+    additionalProperties: false
+    required: [setpoint, interval_minutes, kp, kd]
+    properties:
+      setpoint:
+        type: number
+        minimum: 0
+      interval_minutes:
+        type: number
+        exclusiveMinimum: 0
+      kp:
+        type: number
+      kd:
+        type: number
+
+  cpu:
+    type: object
+    additionalProperties: false
+    required: [interval_seconds, ref, scale]
+    properties:
+      interval_seconds:
+        type: number
+        exclusiveMinimum: 0
+      ref:
+        type: integer
+      scale:
+        type: integer
