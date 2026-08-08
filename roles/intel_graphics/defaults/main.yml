@@ -1,14 +1,66 @@
 ---
 # defaults file for intel_graphics
-bootloader_type: unknown
+#
+# This role enables Intel GPU SR-IOV on a Proxmox host. Two distinct hardware
+# families are supported, selected per-host with `intel_gpu_driver`:
+#
+#   i915  -> Intel Gen12 iGPUs (e.g. Alder Lake / Alder Lake-N). The mainline
+#            kernel has NO SR-IOV for these parts, so the out-of-tree
+#            strongtz/i915-sriov-dkms module is built and the in-tree `xe`
+#            driver is blacklisted so the patched `i915` binds the iGPU.
+#
+#   xe    -> Intel Arc Battlemage (B-series) dGPUs. SR-IOV is NATIVE in the
+#            7.0 kernel via the `xe` driver; no DKMS module is required. We only
+#            tune the driver's VF VRAM auto-provisioning behaviour via modprobe.
+#
+# Anything a specific host needs to override (PCI address, kernel version, VF
+# count) lives here in defaults so inventory host_vars can win. Do NOT move
+# these into vars/main.yml - role vars outrank inventory and would break
+# per-host overrides.
 
+bootloader_type: unknown
 grub_file: /etc/default/grub
-has_google_coral_pc: false
-sysfs_conf_file: /etc/sysfs.conf
-pcie_bus_number: 00:02.0
+
+# Gate: this role only acts when explicitly asked to install VT-d SR-IOV and
+# when reboots are permitted (SR-IOV requires kernel cmdline changes).
 install_intel_vtd: false
 allow_reboot: false
 
-# Apr 7 2024 SHA
-i915_sriov_dkms_git_sha: 3d7a1b3fa4706d8da316d8e794d54db96856a2b9 # pragma: allowlist secret
-required_kernel_version: 6.5.13-3-pve
+# Which GPU family / SR-IOV driver this host uses: "i915" or "xe".
+intel_gpu_driver: i915
+
+# PCI address (bus:device.function) of the GPU Physical Function.
+#   Alder Lake-N iGPU: 00:02.0
+#   A discrete Battlemage card will be on its own bus, e.g. 03:00.0
+pcie_bus_number: "00:02.0"
+
+# Number of Virtual Functions to expose on the PF.
+intel_gpu_num_vfs: 7
+
+# Extra cmdline needed only on the Google Coral PC platform.
+has_google_coral_pc: false
+sysfs_conf_file: /etc/sysfs.conf
+
+# --- i915 (Alder Lake) settings -------------------------------------------
+# Kernel the i915-sriov-dkms module is pinned to and built against. It MUST
+# satisfy the module release's BUILD_EXCLUSIVE_KERNEL range (see below) and be
+# an exact point-release that PVE ships as proxmox-kernel-<ver>-signed.
+# curie's PVE 9 install landed on the 7.0 kernel (no 6.14 was ever offered), so
+# we pin the 7.0 release available in its apt cache.
+i915_required_kernel_version: "7.0.14-3-pve"
+
+# strongtz/i915-sriov-dkms release (git tag). Its dkms.conf pins PACKAGE_VERSION
+# to this same string and constrains the buildable kernels:
+#   2026.03.05.1  -> BUILD_EXCLUSIVE_KERNEL "^6\.1[2-9]"       (kernels 6.12-6.19)
+#   2026.05.06    -> BUILD_EXCLUSIVE_KERNEL "^(6\.1[7-9]|7\.0)" (kernels 6.17-7.0)
+# 2026.05.06 is required for the 7.0 kernel and still ships a patched i915.
+i915_sriov_dkms_git_version: "2026.05.06"
+
+# --- xe (Battlemage) settings ---------------------------------------------
+# Kernel with native xe SR-IOV. Opt-in on PVE 9.1, default on PVE 9.2. Pin the
+# concrete point-release available in apt at upgrade time (e.g. 7.0.0-3-pve).
+xe_required_kernel_version: "REPLACE_WITH_PINNED_7.0_PVE_KERNEL"
+
+# Disable the xe driver's automatic VRAM split across VFs so the PF retains VRAM
+# for host/LXC use and VF VRAM can be provisioned manually. false -> auto=0.
+xe_sriov_auto_provisioning: false

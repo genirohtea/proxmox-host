@@ -1,97 +1,113 @@
 ---
-- name: "Install the sysfsutils package if it is not already present"
+# Persist the SR-IOV Virtual Function count on the GPU Physical Function and
+# validate that the VFs come up. Driver-agnostic: works for the Alder Lake iGPU
+# (i915, PF at 00:02.0) and a discrete Battlemage card (xe, PF on its own bus).
+
+- name: "Install sysfsutils (persists sysfs attributes across reboots)"
   ansible.builtin.apt:
     name: sysfsutils
     state: present
 
-- name: "Retrieve the PCI bus IDs for Intel UHD Graphics controllers"
+- name: "Verify the configured PF is an Intel GPU with SR-IOV capability"
   ansible.builtin.shell:
     cmd: >-
       set -o pipefail;
-      lspci | grep VGA | grep 'UHD Graphics'
+      lspci -D -nnks 0000:{{ pcie_bus_number }}
   args:
     executable: /bin/bash
-  register: uhd_graphics_controllers
+  register: pf_lspci
   changed_when: false
 
-- name: "Assert that there is only a single Intel UHD Graphics device present"
-  assert:
-    that: uhd_graphics_controllers.stdout_lines | length in [1, 8]
-    fail_msg: "There are multiple UHD Graphics devices. Please verify."
+- name: "Display the PF device information"
+  ansible.builtin.debug:
+    msg: "{{ pf_lspci.stdout_lines }}"
 
-- name: "Extract the PCIe ID from the Intel UHD Graphics controller information"
-  set_fact:
-    pcie_id: "{{ uhd_graphics_controllers.stdout_lines[0].split()[0] }}"
+- name: "Assert the PF is bound to the expected driver"
+  ansible.builtin.assert:
+    that:
+      - "'Kernel driver in use: ' + intel_gpu_driver in pf_lspci.stdout"
+    fail_msg: "PF 0000:{{ pcie_bus_number }} is not bound to '{{ intel_gpu_driver }}'. Check module/blacklist config."
 
-- name: "Display the extracted PCIe ID for the Intel UHD Graphics controller"
-  debug:
-    msg: "Identified pcied as {{ pcie_id }} from {{ uhd_graphics_controllers.stdout_lines }}"
+# Resolve the canonical /sys device path (e.g. /sys/devices/pci0000:00/0000:00:02.0
+# for the iGPU, or a nested bridge path for a dGPU) so the sysfs.conf entry is
+# correct regardless of PCIe topology.
+- name: "Resolve the canonical sysfs path for the PF"
+  ansible.builtin.command:
+    cmd: readlink -f /sys/bus/pci/devices/0000:{{ pcie_bus_number }}
+  register: pf_sysfs_link
+  changed_when: false
 
-- name: "Configure sysfs to enable 7 Virtual Functions (VFs) for the PCIe device"
+- name: "Compute the sysfs.conf-relative PF path"
+  ansible.builtin.set_fact:
+    pf_sysfs_relpath: "{{ pf_sysfs_link.stdout | regex_replace('^/sys/', '') }}"
+
+- name: "Configure sysfs to enable the Virtual Functions on the PF"
   ansible.builtin.lineinfile:
     path: "{{ sysfs_conf_file }}"
-    line: "devices/pci0000:00/0000:{{ pcie_id }}/sriov_numvfs = 7"
+    regexp: "^{{ pf_sysfs_relpath | regex_escape }}/sriov_numvfs ="
+    line: "{{ pf_sysfs_relpath }}/sriov_numvfs = {{ intel_gpu_num_vfs }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
 
-- name: "Read the current sysfs configuration from the sysfs.conf file"
+- name: "Read back the sysfs.conf configuration"
   ansible.builtin.command:
     cmd: cat {{ sysfs_conf_file }}
   register: sysfs_conf_content
   changed_when: false
 
-- name: "Display the contents of the sysfs.conf file"
-  debug:
+- name: "Display the sysfs.conf contents"
+  ansible.builtin.debug:
     msg: "{{ sysfs_conf_content.stdout_lines }}"
 
-- name: "Verify that the sysfs.conf file contains the configuration for 7 VFs"
-  assert:
-    that: "'sriov_numvfs = 7' in sysfs_conf_content.stdout"
-    fail_msg: "Substring 'sriov_numvfs = 7' not found in output"
+- name: "Verify sysfs.conf contains the VF configuration"
+  ansible.builtin.assert:
+    that: "'sriov_numvfs = ' + (intel_gpu_num_vfs | string) in sysfs_conf_content.stdout"
+    fail_msg: "Expected 'sriov_numvfs = {{ intel_gpu_num_vfs }}' not found in {{ sysfs_conf_file }}."
 
-- name: "Notify the user about the required MOK management enrollment upon reboot"
-  debug:
-    msg: "System will now reboot. User is required to Perform MOK management
-      enrollment on this boot"
+- name: "Notify about MOK enrollment on the next boot (Secure Boot hosts only)"
+  ansible.builtin.debug:
+    msg: "If Secure Boot is enabled, perform MOK management enrollment on the upcoming reboot."
 
-- name: "Reboot the Proxmox host to apply the new configurations"
+- name: "Reboot to apply the new kernel command line and create the VFs"
   ansible.builtin.reboot:
-    msg: "Force a reboot to use new kernel commandline"
+    msg: "Force a reboot to use the new kernel commandline"
     connect_timeout: 5
-    reboot_timeout: 300
+    reboot_timeout: 600
     pre_reboot_delay: 5
     post_reboot_delay: 30
     test_command: uptime
   when: allow_reboot
 
-- name: "Retrieve information about the VGA device"
-  ansible.builtin.shell:
-    cmd: >-
-      set -o pipefail;
-      lspci | grep VGA
-  args:
-    executable: /bin/bash
-  register: vga_check
+- name: "Read back the live VF count from the PF"
+  ansible.builtin.command:
+    cmd: cat /sys/bus/pci/devices/0000:{{ pcie_bus_number }}/sriov_numvfs
+  register: live_numvfs
   changed_when: false
 
-- name: "Display the retrieved VGA device information"
-  debug:
-    msg: "{{ vga_check.stdout_lines }}"
+- name: "Assert the expected number of VFs are live"
+  ansible.builtin.assert:
+    that:
+      - live_numvfs.stdout | int == intel_gpu_num_vfs | int
+    fail_msg: "PF reports {{ live_numvfs.stdout }} VFs; expected {{ intel_gpu_num_vfs }}."
 
-- name: "Check the dmesg log for messages from the i915 driver"
+- name: "Check the dmesg log for the GPU driver"
   ansible.builtin.shell:
     cmd: >-
       set -o pipefail;
-      dmesg | grep i915
+      dmesg | grep -i {{ intel_gpu_driver }}
   args:
     executable: /bin/bash
   register: boot_log_check
   changed_when: false
 
-- name: "Display the i915 driver messages from the dmesg log"
-  debug:
+- name: "Display the driver messages from dmesg"
+  ansible.builtin.debug:
     msg: "{{ boot_log_check.stdout_lines }}"
 
-- name: "Assert that 7 Virtual Functions (VFs) are enabled for the Intel UHD Graphics controller"
+- name: "Assert the driver reports the Virtual Functions enabled"
   ansible.builtin.assert:
     that:
-      - "'Enabled 7 VFs' in boot_log_check.stdout"
-    fail_msg: "7 VFs are not enabled. Please troubleshoot as needed."
+      - "'Enabled ' + (intel_gpu_num_vfs | string) + ' VFs' in boot_log_check.stdout"
+    fail_msg: "{{ intel_gpu_num_vfs }} VFs are not enabled per dmesg. Please troubleshoot."

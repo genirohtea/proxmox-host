@@ -1,0 +1,135 @@
+---
+# i915 (Alder Lake iGPU) SR-IOV via the strongtz/i915-sriov-dkms module.
+#
+# The mainline i915 has no SR-IOV for Gen12 iGPUs, so we build an out-of-tree
+# patched i915 (plus helper modules) with DKMS. Newer module releases hardcode
+# PACKAGE_VERSION in dkms.conf (a date string, e.g. 2026.03.05.1) instead of the
+# old @_PKGBASE@ / @PKGVER@ placeholders, and version the DKMS package by that
+# string rather than by kernel version - so we read the version from dkms.conf
+# and drive every dkms path/command from it.
+
+- name: "Update the APT cache and install the DKMS build prerequisites"
+  ansible.builtin.apt:
+    update_cache: true
+    pkg:
+      - git
+      - pve-headers
+      - mokutil
+    state: present
+
+- name: "Remove any previous i915-sriov-dkms checkout"
+  ansible.builtin.file:
+    path: /root/i915-sriov-dkms
+    state: absent
+
+- name: "Clone the i915-sriov-dkms repository at the pinned release"
+  ansible.builtin.git:
+    repo: https://github.com/strongtz/i915-sriov-dkms
+    dest: /root/i915-sriov-dkms
+    version: "{{ i915_sriov_dkms_git_version }}"
+
+- name: "Read PACKAGE_VERSION from the module's dkms.conf"
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      grep -E '^PACKAGE_VERSION=' /root/i915-sriov-dkms/dkms.conf | cut -d'"' -f2
+  args:
+    executable: /bin/bash
+  register: dkms_package_version_raw
+  changed_when: false
+
+- name: "Record the DKMS package version"
+  ansible.builtin.set_fact:
+    dkms_package_version: "{{ dkms_package_version_raw.stdout | trim }}"
+
+- name: "Verify the module supports the pinned kernel (BUILD_EXCLUSIVE_KERNEL)"
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      grep -E '^BUILD_EXCLUSIVE_KERNEL=' /root/i915-sriov-dkms/dkms.conf | cut -d'"' -f2
+  args:
+    executable: /bin/bash
+  register: build_exclusive_kernel
+  changed_when: false
+
+- name: "Assert the running kernel matches the module's supported range"
+  ansible.builtin.assert:
+    that:
+      - build_exclusive_kernel.stdout | length == 0 or (kernel_version_num is regex(build_exclusive_kernel.stdout))
+    fail_msg: >-
+      Kernel {{ kernel_version_num }} is outside i915-sriov-dkms
+      {{ dkms_package_version }} BUILD_EXCLUSIVE_KERNEL
+      '{{ build_exclusive_kernel.stdout }}'. Pick a matching module release.
+
+- name: "Remove any stale DKMS state for this module"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "/var/lib/dkms/i915-sriov-dkms"
+    - "/usr/src/i915-sriov-dkms-{{ dkms_package_version }}"
+
+- name: "Ensure DKMS is installed"
+  ansible.builtin.apt:
+    name: dkms
+    state: present
+
+- name: "Register the module source tree with DKMS"
+  ansible.builtin.command:
+    chdir: /root/i915-sriov-dkms
+    cmd: dkms add .
+    creates: "/usr/src/i915-sriov-dkms-{{ dkms_package_version }}"
+
+- name: "Build and install the module for the pinned kernel"
+  ansible.builtin.command:
+    cmd: >-
+      dkms install -m i915-sriov-dkms -v {{ dkms_package_version }}
+      -k {{ kernel_version }} --force
+    chdir: "/usr/src/i915-sriov-dkms-{{ dkms_package_version }}"
+  register: dkms_install
+  changed_when: "'already installed' not in dkms_install.stdout"
+
+- name: "Check the DKMS module status"
+  ansible.builtin.command:
+    cmd: dkms status
+  register: dkms_status
+  changed_when: false
+
+- name: "Display the DKMS module status"
+  ansible.builtin.debug:
+    msg: "{{ dkms_status.stdout_lines }}"
+
+- name: "Assert the module installed for the running kernel"
+  ansible.builtin.assert:
+    that:
+      - "'i915-sriov-dkms/' + dkms_package_version in dkms_status.stdout"
+      - "kernel_version in dkms_status.stdout"
+    fail_msg: "i915-sriov-dkms {{ dkms_package_version }} is not installed for {{ kernel_version }}."
+
+- name: "Determine the current Secure Boot state"
+  ansible.builtin.command:
+    cmd: mokutil --sb-state
+  register: secure_boot_status
+  changed_when: false
+
+- name: "Display the Secure Boot state"
+  ansible.builtin.debug:
+    msg: "{{ secure_boot_status.stdout }}"
+
+# Only relevant when Secure Boot is enabled (e.g. ZFS-on-GRUB hosts). Curie has
+# Secure Boot disabled, so this is a no-op there.
+- name: "Enroll the DKMS MOK signing key (Secure Boot only)"
+  ansible.builtin.command:
+    cmd: mokutil --import /var/lib/dkms/mok.pub --root-pw
+  when: '"SecureBoot enabled" in secure_boot_status.stdout'
+  changed_when: false
+
+- name: "Reboot so the patched i915 module is loaded"
+  ansible.builtin.reboot:
+    msg: "Force a reboot to load the i915-sriov-dkms module"
+    connect_timeout: 5
+    reboot_timeout: 600
+    pre_reboot_delay: 5
+    post_reboot_delay: 30
+    test_command: "uptime"
+  when: allow_reboot

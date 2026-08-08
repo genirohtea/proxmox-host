@@ -1,18 +1,37 @@
 ---
 # tasks file for intel_graphics
-- name: "Install Intel Graphics VT-d support"
+- name: "Install Intel Graphics VT-d SR-IOV support"
   when: install_intel_vtd and allow_reboot
   become: true
   block:
-    - name: "Verify that the bootloader type is either GRUB or systemd determiend by color of boot screen."
-      assert:
+    - name: "Verify the selected GPU driver is supported"
+      ansible.builtin.assert:
+        that:
+          - intel_gpu_driver in ['i915', 'xe']
+        fail_msg: "intel_gpu_driver must be 'i915' (Alder Lake iGPU) or 'xe' (Battlemage dGPU); got '{{ intel_gpu_driver }}'."
+
+    - name: "Verify that the bootloader type is GRUB"
+      ansible.builtin.assert:
         that:
           - hostvars[inventory_hostname].bootloader_type is defined
           - hostvars[inventory_hostname].bootloader_type in ['grub']
-        fail_msg: "bootloader_type must be 'grub' systemd is currently unsupported. {{ hostvars }}"
+        fail_msg: "bootloader_type must be 'grub'; systemd-boot is currently unsupported by this role."
+
+    - name: "Select the kernel version to pin for the chosen driver"
+      ansible.builtin.set_fact:
+        required_kernel_version: "{{ i915_required_kernel_version if intel_gpu_driver == 'i915' else xe_required_kernel_version }}"
+
+    - name: "Verify the required kernel version has been pinned to a real release"
+      ansible.builtin.assert:
+        that:
+          - "'REPLACE_WITH' not in required_kernel_version"
+        fail_msg: >-
+          required_kernel_version is still the placeholder. Set
+          {{ 'i915_required_kernel_version' if intel_gpu_driver == 'i915' else 'xe_required_kernel_version' }}
+          to the exact PVE point-release (e.g. 6.14.11-2-pve) available in apt.
 
     - name: "Pin the required kernel"
-      include_role:
+      ansible.builtin.include_role:
         name: kernel_pinning
       vars:
         pinned_kernel_version: "{{ required_kernel_version }}"
@@ -34,15 +53,32 @@
       ansible.builtin.debug:
         var: kernel_version_num
 
-    - name: "Configure the kernel for Intel Graphics support"
-      ansible.builtin.import_tasks: kernel_configuration.yml
+    # Build the driver-specific kernel command line. The IOMMU flags are common;
+    # i915 needs GuC + max_vfs and must blacklist the in-tree xe so the patched
+    # i915 binds the iGPU. Native xe SR-IOV needs no such parameters.
+    - name: "Compose the driver-specific kernel command line parameters"
+      ansible.builtin.set_fact:
+        intel_gpu_kernel_params: >-
+          {{
+            'intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=' ~ intel_gpu_num_vfs ~ ' module_blacklist=xe'
+            if intel_gpu_driver == 'i915'
+            else 'intel_iommu=on iommu=pt'
+          }}
+
+    - name: "Configure the SR-IOV driver for the selected GPU family"
+      ansible.builtin.import_tasks: i915.yml
+      when: intel_gpu_driver == 'i915'
+    - name: "Configure native xe SR-IOV for the selected GPU family"
+      ansible.builtin.import_tasks: xe.yml
+      when: intel_gpu_driver == 'xe'
+
     - name: "Configure the GRUB bootloader for Intel Graphics support"
       ansible.builtin.import_tasks: grub_configuration.yml
       when: hostvars[inventory_hostname].bootloader_type == "grub"
     - name: "Configure the systemd bootloader for Intel Graphics support"
       ansible.builtin.import_tasks: systemd_boot_configuration.yml
       when: hostvars[inventory_hostname].bootloader_type == 'systemd'
-    - name: "Validate the PCI configuration for Intel Graphics"
+    - name: "Validate the PCI SR-IOV configuration"
       ansible.builtin.import_tasks: pci_configuration.yml
 
   rescue:

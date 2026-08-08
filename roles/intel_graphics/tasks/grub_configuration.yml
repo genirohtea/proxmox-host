@@ -6,14 +6,15 @@
     mode: preserve
     remote_src: true
 
-- name: "Update the GRUB configuration file with the specified kernel parameters"
+- name: "Update the GRUB configuration file with the driver-specific kernel parameters"
   ansible.builtin.lineinfile:
     path: "{{ grub_file }}"
     regexp: "^GRUB_CMDLINE_LINUX_DEFAULT"
     line: 'GRUB_CMDLINE_LINUX_DEFAULT="{{ grub_command }}"'
   vars:
+    # intel_gpu_kernel_params is composed per-driver in tasks/main.yml.
     grub_command: >-
-      quiet intel_iommu=on iommu=pt i915.enable_guc=3 i915.max_vfs=7
+      quiet {{ intel_gpu_kernel_params }}
       {{ "initcall_blacklist=sysfb_init pcie_aspm=off" if has_google_coral_pc else "" }}
 
 - name: "Execute the update-grub command to apply the new GRUB configuration"

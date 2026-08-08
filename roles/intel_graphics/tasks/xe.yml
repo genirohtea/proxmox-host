@@ -1,0 +1,31 @@
+---
+# xe (Battlemage dGPU) SR-IOV - NATIVE in the 7.0 kernel, no DKMS required.
+#
+# The in-tree xe driver already exposes SR-IOV for Arc B-series cards, so there
+# is nothing to build. The only tuning needed is the VF VRAM auto-provisioning
+# behaviour: by default xe splits all VRAM across the VFs, leaving none for the
+# PF (host/LXC use). Disabling auto-provisioning lets VF VRAM be assigned
+# manually and keeps VRAM available to the PF.
+
+- name: "Verify pve-headers are present (kept in sync with the pinned kernel)"
+  ansible.builtin.apt:
+    update_cache: true
+    name: pve-headers
+    state: present
+
+- name: "Configure the xe driver SR-IOV VRAM provisioning behaviour"
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/xe.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by the intel_graphics Ansible role.
+      # 0 disables automatic VRAM distribution across VFs so the PF keeps VRAM
+      # and VF VRAM can be provisioned manually.
+      options xe xe_sriov_auto_provisioning={{ 1 if xe_sriov_auto_provisioning else 0 }}
+
+- name: "Rebuild the initramfs so the xe module options take effect at boot"
+  ansible.builtin.command:
+    cmd: update-initramfs -u -k all
+  changed_when: false
