@@ -14,15 +14,33 @@
       tags: fix_package_repos
     - role: remove_kernels
       tags: remove_kernels
-      when: "'pve' in hostvars[inventory_hostname].ansible_kernel"
+      when: "'pve' in hostvars[inventory_hostname].ansible_facts.kernel"
     - role: cpu_microcode
       tags: cpu_microcode
+    - role: scaling_governor
+      tags: scaling_governor
+    # Every role that stages kernel command line parameters must run BEFORE
+    # gpu_passthrough, which reboots the host from inside iommu_enable. A role
+    # placed after it stages its parameter into /etc/kernel/cmdline with no
+    # further reboot in the play, so the change sits pending until someone
+    # reboots by hand -- and the symptom (a setting that "did not apply") shows
+    # up nowhere near the ordering that caused it.
+    - role: hugepages
+      tags: hugepages
+      when: (hugepages_2mb_gib | default(0) | int) > 0
     - role: intel_graphics
       tags: intel_graphics
     - role: ipmi_fan_control
       tags: ipmi_fan_control
     - role: gpu_passthrough
       tags: gpu_passthrough
+    # Hosts with a GPU get vfio.conf written inside gpu_passthrough (before its
+    # reboot). This covers hosts that pass through non-GPU devices only, so a
+    # missing graphics_card never means a missing HBA/NVMe binding.
+    - role: vfio_bind
+      tags: vfio_bind
+      when: graphics_card is not defined
+
     - role: nvidia_vgpu
       tags: nvidia_vgpu
     - role: coral
@@ -31,10 +49,17 @@
     #   tags: terraform_user
     - role: admin_user
       tags: admin_user
+    # Storage content types come before download_isos: that role writes ISOs to
+    # `local`, which must already carry the content types it needs.
+    - role: pve_storage
+      tags: pve_storage
+
     - role: download_isos
       tags: download_isos
     - role: zfs
       tags: zfs
+    - role: disk_health
+      tags: disk_health
     - role: google_drive_mount
       tags: google_drive_mount
       vars:
