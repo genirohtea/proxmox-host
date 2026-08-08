@@ -99,14 +99,35 @@
         usb_major_minor: "{{ usb_device_details.stdout.split()[4].split(',') }}"
       when: coral_usb_info | length == 2 and usb_device_details.stdout is defined
 
+    # The Coral USB re-enumerates (bus/device changes) after the container or host
+    # reboots, so the frigate-dev LXC binds the whole /dev/bus/usb tree rather than a
+    # single device node. The bus/device values above are informational only.
+    #
+    # Final LXC end state (/etc/pve/lxc/<vmid>.conf) for the frigate-dev container:
+    #     arch: amd64
+    #     cores: 8
+    #     features: nesting=1
+    #     hostname: frigate-dev
+    #     memory: 4096
+    #     mp0: pool-cam-ssd:subvol-301020-disk-1,mp=/mnt/frigate_storage,size=800G
+    #     net0: name=eth0,bridge=vmbr1,hwaddr=BC:24:11:24:60:FE,ip=dhcp,tag=70,type=veth
+    #     onboot: 1
+    #     ostype: debian
+    #     rootfs: pool-cam-ssd:subvol-301020-disk-0,size=32G
+    #     swap: 4096
+    #     lxc.cgroup2.devices.allow: c 189:* rwm
+    #     lxc.cgroup2.cpuset.cpus: 0-3
+    #     lxc.mount.entry: /dev/bus/usb dev/bus/usb none bind,optional,create=dir
+    #
+    # USB devices always use major 189, so the cgroup2 allow rule below is static.
     - name: "Display LXC configuration instructions"
       ansible.builtin.debug:
         msg:
           - "To configure your LXC container for this USB device, add the following lines to your LXC configuration:"
-          - "1. Allow access to the USB device:"
-          - "   lxc.cgroup.devices.allow: c {{ usb_major_minor[0] }}:* rwm"
-          - "2. Mount the USB device in the container:"
-          - "   lxc.mount.entry: /dev/bus/usb/{{ coral_usb_info[0] }}/{{ coral_usb_info[1] }} dev/bus/usb/{{ coral_usb_info[0] }}/{{ coral_usb_info[1] }} none bind,optional,create=file"
+          - "1. Allow access to the USB device (major {{ usb_major_minor[0] }} is the USB device class):"
+          - "   lxc.cgroup2.devices.allow: c {{ usb_major_minor[0] }}:* rwm"
+          - "2. Bind-mount the full USB tree so the Coral survives re-enumeration:"
+          - "   lxc.mount.entry: /dev/bus/usb dev/bus/usb none bind,optional,create=dir"
       when: coral_usb_info | length == 2 and usb_major_minor is defined
   rescue:
     - name: "Coral USB detection failed"
