@@ -28,7 +28,13 @@ fan:
   # Min/max duty cycle to avoid stalling or running flat out.
   duty_cpu_min: 5
   duty_cpu_max: 100
-  duty_periph_min: 20
+  # Raised from 20 to sit at the drive zone's thermal equilibrium rather than
+  # below it. Measured on this host: at 20% duty the two 4 TB NVMe climb to
+  # ~67 C, at 31% they fall to ~58 C, so they balance near 25%. With a floor of
+  # 20 every downswing undershot equilibrium and guaranteed a reheat, leaving
+  # the loop cycling even after the kd and setpoint retune. See the drive
+  # section for why this host controls on solid state rather than the pool HDDs.
+  duty_periph_min: 25
   duty_periph_max: 100
   # Measured fan RPMs (via spintest.sh) at 30% and 100% duty cycle.
   # rpm_cpu_* is for FANA if zone_cpu=1 or FAN4 if zone_cpu=0; rpm_periph_* is
@@ -44,13 +50,35 @@ fan:
 
 drive:
   # Setpoint mean drive temperature (C).
-  setpoint: 40
+  #
+  # Raised from the original 40 because this host no longer controls on spinning
+  # drives. The eight 18 TB pool HDDs sit behind the LSI SAS2008 HBA, which the
+  # vfio_bind role binds to vfio-pci for the NAS VM, so they are invisible to
+  # lshw and never enter the average. What remains is all solid state, and only
+  # four devices report a temperature spinpid2 can parse: two 4 TB NVMe that
+  # idle near 51-53 C and two SATA SSDs near 31 C, giving a mean of ~43 C with
+  # the fans at their 20% floor.
+  #
+  # A setpoint of 40 is therefore below the resting temperature, so the loop can
+  # never settle: it ramps, overcools, drops to the floor, and reheats. 48 sits
+  # above that resting mean with margin, which keeps the fans at minimum until
+  # something is genuinely warm. Because two cool SSDs dilute the mean, a mean of
+  # 48 corresponds to roughly 66 C on the NVMe -- still well under their ~80 C
+  # throttle point, so the ramp still happens in time to matter.
+  setpoint: 48
   # Interval for checking drives (main cycle; minutes). Drives change
   # temperature slowly; 5 minutes is usually frequent enough.
   interval_minutes: 5
   # Tunable PID constants for drive control (see tuning notes in spinpid2.sh).
+  #
+  # kd was 40, tuned for the thermal inertia of 18 TB spinning drives. NVMe
+  # respond far faster -- these swung 12 C within one 5 minute interval -- which
+  # made the derivative term (+-56) swamp the proportional term (+-16) and drove
+  # the duty cycle between the 20% floor and ~90% in a self-sustaining
+  # oscillation with a period of exactly two sample intervals. 8 keeps enough
+  # derivative action to anticipate a real climb without dominating the loop.
   kp: 4
-  kd: 40
+  kd: 8
 
 cpu:
   # Interval for checking the CPU (seconds). 1 to 12 may be appropriate.
