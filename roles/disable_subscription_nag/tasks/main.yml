@@ -1,23 +1,40 @@
 ---
-# tasks file for disable_subscription_nag
+# Keep the Proxmox subscription reminder patch in place after upgrades to
+# proxmox-widget-toolkit. This follows the implementation used by the
+# community-scripts Post-PVE-Install script.
 
-# Disable the scubscription nag
-
-- name: "Download pve-fake-subscription"
-  # GitHub release assets are addressable by tag only (v0.0.11), and tags can be moved to a
-  # different commit. The tag currently points at commit 31cd2b874692d8a00d6a22b02281cbe0c77b9519
-  # (version 0.0.11, 2024/10/26). To pin the actual installed content we verify the .deb against
-  # its sha256 (published in the release's sha256sum.txt), so a moved tag / changed asset fails.
-  ansible.builtin.get_url:
-    url: https://github.com/Jamesits/pve-fake-subscription/releases/download/v0.0.11/pve-fake-subscription_0.0.11+git-1_all.deb # yamllint disable-line rule:line-length
-    dest: /tmp/pve-fake-subscription_0.0.11+git-1_all.deb
-    checksum: sha256:4ea3aa7a84ed95065cd10f3e7bdbacd1c7c684d3c01105e0926045ed412de363
-    mode: "0644"
+- name: "Remove the legacy fake subscription package"
+  ansible.builtin.apt:
+    name: pve-fake-subscription
+    state: absent
+    purge: true
   become: true
   become_method: ansible.builtin.su
 
-- name: "Install pve-fake-subscription"
-  ansible.builtin.apt:
-    deb: /tmp/pve-fake-subscription_0.0.11+git-1_all.deb
+- name: "Install the subscription nag removal script"
+  ansible.builtin.copy:
+    src: pve-remove-nag.sh
+    dest: /usr/local/bin/pve-remove-nag.sh
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  become_method: ansible.builtin.su
+
+- name: "Run the subscription nag removal after package operations"
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/no-nag-script
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      DPkg::Post-Invoke { "/usr/local/bin/pve-remove-nag.sh"; };
+  become: true
+  become_method: ansible.builtin.su
+
+- name: "Apply the subscription nag removal now"
+  ansible.builtin.command: /usr/local/bin/pve-remove-nag.sh
+  register: disable_subscription_nag_result
+  changed_when: "'Patching' in disable_subscription_nag_result.stdout"
   become: true
   become_method: ansible.builtin.su

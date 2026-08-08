@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: genirohtea
-  description: Installs a fake subscription package to disable Proxmox VE subscription nag
+  description: Disables the Proxmox VE subscription nag and reapplies the patch after package upgrades
 
   # If the issue tracker for your role is not on github, uncomment the
   # next line and provide a value

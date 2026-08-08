@@ -1,6 +1,7 @@
 # Disable Subscription Nag
 
-This role installs a fake subscription package to disable the Proxmox VE subscription nag.
+This role patches the Proxmox desktop and mobile web interfaces to disable the subscription nag. An APT `DPkg::Post-Invoke` hook reapplies the patch after package upgrades replace the affected web-interface
+files.
 
 ## Requirements
 
