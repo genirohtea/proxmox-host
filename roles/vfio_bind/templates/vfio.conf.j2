@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+#
+# Managed in full by the `vfio_bind` role. This file has exactly one author by
+# design: a second writer appending to `options vfio-pci ids=` does not replace
+# the existing line, it adds a competing one, and whichever playbook ran last
+# decides what the host claims at the next boot. Contribute IDs instead:
+#
+#   - GPUs        -> gpu_passthrough sets vfio_bind_gpu_pci_ids / _softdeps
+#   - everything else -> vfio_bind_extra_pci_ids / _softdeps in the inventory
+#
+# Do not edit by hand; changes are overwritten on the next run.
+options vfio-pci ids={{ vfio_bind_pci_ids | join(',') }}
+{% for module in vfio_bind_softdeps %}
+softdep {{ module }} pre: vfio-pci
+{% endfor %}

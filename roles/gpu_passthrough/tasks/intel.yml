@@ -1,0 +1,56 @@
+---
+# yamllint disable-rule rule:line-length
+#
+# Full passthrough of an Intel Arc discrete GPU (Alchemist/DG2, e.g. Arc A310)
+# to a single VM. Unlike the integrated-GPU SR-IOV path (see the intel_graphics
+# role), the consumer A-series has no working SR-IOV, so the whole card is bound
+# to vfio-pci on the host and handed to one guest.
+#
+# No DKMS module is required (contrast the AMD vendor-reset path). Recent PVE
+# kernels (6.14 / 7.0) handle the Arc Function Level Reset correctly, so no
+# reset-method quirk is needed either. We only need to claim both PCI functions
+# of the card (the VGA controller and its companion HDMI/DP audio device) with
+# vfio-pci before i915/xe/snd_hda_intel can grab them.
+- name: "Intel GPU Configuration Block"
+  become: true
+  when: allow_reboot
+  block:
+    - name: "Get PCI IDs for the Intel Arc (DG2) GPU and its audio function"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        lspci -nn | grep 'DG2'
+      register: intel_pci_info
+      changed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: "Fail if no Intel Arc (DG2) device was found"
+      ansible.builtin.assert:
+        that:
+          - intel_pci_info.stdout_lines | length > 0
+        fail_msg: >-
+          No 'DG2' device found in lspci. This path targets Intel Arc Alchemist
+          discrete cards (e.g. Arc A310). Check the card is seated and visible.
+
+    - name: "Extract vendor:device PCI IDs for the Intel Arc GPU"
+      ansible.builtin.set_fact:
+        intel_pci_ids: "{{ intel_pci_info.stdout_lines | map('regex_findall', '\\[([0-9a-fA-F]{4}:[0-9a-fA-F]{4})\\]') | map('first') | list }}"
+
+    - name: "Display the Intel Arc PCI IDs to be bound to vfio-pci"
+      ansible.builtin.debug:
+        var: intel_pci_ids
+
+    # Contribute to vfio_bind rather than writing /etc/modprobe.d/vfio.conf here.
+    # That file has exactly one author so a second writer cannot silently revert
+    # the non-GPU devices claimed on this host; see roles/vfio_bind/README.md.
+    - name: "Contribute the Arc GPU to the vfio-pci binding"
+      ansible.builtin.set_fact:
+        vfio_bind_gpu_pci_ids: "{{ intel_pci_ids }}"
+        vfio_bind_gpu_softdeps:
+          - i915
+          - xe
+          - snd_hda_intel
+  rescue:
+    - name: "Intel GPU Passthrough failed"
+      ansible.builtin.set_fact:
+        task_failed: true

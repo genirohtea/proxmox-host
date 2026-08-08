@@ -26,21 +26,16 @@
       ansible.builtin.set_fact:
         nvidia_pci_ids: "{{ nvidia_pci_info.stdout_lines | map('regex_findall', '\\[([0-9a-fA-F]{4}:[0-9a-fA-F]{4})\\]') | map('first') | list }}"
 
-    - name: "Ensure vfio-pci module is loaded before other drivers for NVIDIA"
-      ansible.builtin.lineinfile:
-        path: /etc/modprobe.d/vfio.conf
-        line: "{{ item }}"
-        create: true
-        owner: root
-        group: root
-        mode: 0600
-      loop:
-        - "options vfio-pci ids={{ nvidia_pci_ids | join(',') }}"
-        - "softdep nouveau pre: vfio-pci"
-        - "softdep nvidia pre: vfio-pci"
-        - "softdep nvidiafb pre: vfio-pci"
-        - "softdep nvidia_drm pre: vfio-pci"
-        - "softdep drm pre: vfio-pci"
+    # See intel.yml: vfio_bind owns /etc/modprobe.d/vfio.conf; we only contribute.
+    - name: "Contribute the NVIDIA GPU to the vfio-pci binding"
+      ansible.builtin.set_fact:
+        vfio_bind_gpu_pci_ids: "{{ nvidia_pci_ids }}"
+        vfio_bind_gpu_softdeps:
+          - nouveau
+          - nvidia
+          - nvidiafb
+          - nvidia_drm
+          - drm
   rescue:
     - name: "NVIDIA GPU Passthrough failed"
       ansible.builtin.set_fact:

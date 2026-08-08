@@ -1,0 +1,7 @@
+---
+# handlers file for vfio_bind
+- name: "Update initramfs for vfio_bind"
+  ansible.builtin.command: update-initramfs -u
+  become: true
+  changed_when: true
+  when: vfio_bind_update_initramfs

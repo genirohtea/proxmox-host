@@ -1,0 +1,123 @@
+---
+# tasks file for vfio_bind
+#
+# Owns /etc/modprobe.d/vfio.conf outright. Every consumer contributes IDs and
+# softdeps as variables; this role renders the whole file from a template, so
+# the "two writers, last one wins" failure mode is impossible by construction
+# rather than by convention.
+- name: "Bind devices to vfio-pci"
+  become: true
+  block:
+    - name: "Merge the GPU-discovered and inventory-supplied vfio device lists"
+      ansible.builtin.set_fact:
+        vfio_bind_pci_ids: >-
+          {{ (vfio_bind_gpu_pci_ids + vfio_bind_extra_pci_ids)
+            | map('lower') | unique | list }}
+        vfio_bind_softdeps: >-
+          {{ (vfio_bind_gpu_softdeps + vfio_bind_extra_softdeps)
+            | unique | list }}
+
+    - name: "Show the merged vfio-pci binding"
+      ansible.builtin.debug:
+        msg: >-
+          vfio-pci will claim {{ vfio_bind_pci_ids | join(', ') | default('nothing', true) }};
+          softdeps: {{ vfio_bind_softdeps | join(', ') | default('none', true) }}
+
+    # Backstop for the tag/ordering trap: this role is the single writer, so
+    # rendering with an empty GPU list on a host that HAS a GPU would silently
+    # hand the card back to its native driver at the next boot. Fail instead.
+    - name: "Refuse to write a binding that would drop this host's GPU"
+      ansible.builtin.assert:
+        that:
+          - vfio_bind_gpu_pci_ids | length > 0
+        fail_msg: >-
+          graphics_card is '{{ graphics_card | default("") }}' but no GPU PCI
+          IDs were discovered, so writing {{ vfio_bind_conf_path }} now would
+          DROP the GPU from the binding and return it to i915/xe/amdgpu/nouveau
+          at the next boot. gpu_passthrough's discovery tasks did not run —
+          re-run the play without restricting tags.
+        quiet: true
+      when: graphics_card is defined
+
+    - name: "Reject a malformed vendor:device ID before it reaches modprobe"
+      ansible.builtin.assert:
+        that:
+          - item is match('^[0-9a-f]{4}:[0-9a-f]{4}$')
+        fail_msg: >-
+          '{{ item }}' is not a vendor:device PCI ID. vfio_bind expects IDs as
+          reported in brackets by `lspci -nn` (e.g. 1000:0072), not a PCI path
+          such as 85:00.0 — a path here would silently bind nothing.
+        quiet: true
+      loop: "{{ vfio_bind_pci_ids }}"
+
+    # Runs *before* the file is written: a config that strands a neighbour
+    # device is worse than no config, and this is the last cheap moment to
+    # notice. Groups are re-checked here rather than trusted from the design
+    # doc, because a firmware or kernel update can merge them.
+    - name: "Resolve each device's PCI address and IOMMU group size"
+      ansible.builtin.shell: |
+        set -o pipefail
+        rc=0
+        for id in {{ vfio_bind_pci_ids | join(' ') }}; do
+          addrs=$(lspci -Dn -d "$id" | awk '{print $1}')
+          if [ -z "$addrs" ]; then
+            echo "$id - - not-present"
+            continue
+          fi
+          for addr in $addrs; do
+            link=/sys/bus/pci/devices/$addr/iommu_group
+            if [ ! -e "$link" ]; then
+              echo "$id $addr - no-iommu"
+              rc=1
+              continue
+            fi
+            grp=$(basename "$(readlink -f "$link")")
+            n=$(ls "/sys/kernel/iommu_groups/$grp/devices" | wc -l)
+            echo "$id $addr $grp $n"
+          done
+        done
+        exit $rc
+      args:
+        executable: /bin/bash
+      register: vfio_bind_iommu_scan
+      changed_when: false
+      failed_when: vfio_bind_iommu_scan.rc != 0
+      when: vfio_bind_assert_iommu_isolation
+
+    - name: "Show the IOMMU group of every device to be bound"
+      ansible.builtin.debug:
+        var: vfio_bind_iommu_scan.stdout_lines
+      when: vfio_bind_assert_iommu_isolation
+
+    - name: "Fail if any device shares its IOMMU group with another device"
+      ansible.builtin.assert:
+        that:
+          - item.split()[3] | int == 1
+        fail_msg: >-
+          PCI {{ item.split()[1] }} (id {{ item.split()[0] }}) is in IOMMU group
+          {{ item.split()[2] }} with {{ item.split()[3] }} devices. Binding it to
+          vfio-pci would drag its group-mates into the guest as well. Inspect
+          /sys/kernel/iommu_groups/{{ item.split()[2] }}/devices before going
+          further; do NOT reach for an ACS override without understanding what
+          else is in that group. Set vfio_bind_assert_iommu_isolation=false only
+          if you have decided the sharing is acceptable.
+        quiet: true
+      loop: "{{ vfio_bind_iommu_scan.stdout_lines | default([]) }}"
+      when:
+        - vfio_bind_assert_iommu_isolation
+        - item.split() | length == 4
+        - "'not-present' not in item"
+
+    - name: "Render the single vfio-pci configuration file"
+      ansible.builtin.template:
+        src: vfio.conf.j2
+        dest: "{{ vfio_bind_conf_path }}"
+        owner: root
+        group: root
+        mode: "0600"
+      when: vfio_bind_pci_ids | length > 0
+      notify: "Update initramfs for vfio_bind"
+  rescue:
+    - name: "VFIO bind failed"
+      ansible.builtin.set_fact:
+        task_failed: true

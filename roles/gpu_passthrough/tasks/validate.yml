@@ -47,12 +47,31 @@
         lspci -nnk | grep 'NVIDIA'
       register: driver_check_nvidia
       changed_when: false
+      failed_when: false
       args:
         executable: /bin/bash
+      when: graphics_card == 'NVIDIA'
 
     - name: "Display driver loading check results for NVIDIA"
       ansible.builtin.debug:
         var: driver_check_nvidia.stdout_lines
+      when: graphics_card == 'NVIDIA'
+
+    - name: "Verify correct driver loading for the Intel Arc (DG2) GPU"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        lspci -nnk | grep -A3 'DG2'
+      register: driver_check_intel
+      changed_when: false
+      failed_when: false
+      args:
+        executable: /bin/bash
+      when: graphics_card == 'Intel'
+
+    - name: "Display driver loading check results for the Intel Arc GPU"
+      ansible.builtin.debug:
+        var: driver_check_intel.stdout_lines
+      when: graphics_card == 'Intel'
   rescue:
     - name: "GPU passthrough validation failed"
       ansible.builtin.set_fact:

@@ -44,7 +44,7 @@
       ansible.builtin.reboot:
         msg: "Force a reboot to allow the dkms kernel module to be used"
         connect_timeout: 5
-        reboot_timeout: 300
+        reboot_timeout: 600
         pre_reboot_delay: 5
         post_reboot_delay: 30
         test_command: "uptime"
@@ -97,15 +97,13 @@
         enabled: true
         state: started
 
-    - name: "Ensure vfio-pci module is loaded before other drivers for AMD"
-      ansible.builtin.lineinfile:
-        path: /etc/modprobe.d/vfio.conf
-        line: "{{ item }}"
-        state: present
-      loop:
-        - "options vfio-pci ids={{ amd_pci_ids | join(',') }}"
-        - "softdep radeon pre: vfio-pci"
-        - "softdep amdgpu pre: vfio-pci"
+    # See intel.yml: vfio_bind owns /etc/modprobe.d/vfio.conf; we only contribute.
+    - name: "Contribute the AMD GPU to the vfio-pci binding"
+      ansible.builtin.set_fact:
+        vfio_bind_gpu_pci_ids: "{{ amd_pci_ids }}"
+        vfio_bind_gpu_softdeps:
+          - radeon
+          - amdgpu
 
   rescue:
     - name: "AMD GPU Passthrough failed"

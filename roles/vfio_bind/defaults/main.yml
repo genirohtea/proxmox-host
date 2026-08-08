@@ -1,0 +1,30 @@
+---
+# defaults file for vfio_bind
+
+# Path of the single file this role owns outright.
+vfio_bind_conf_path: /etc/modprobe.d/vfio.conf
+
+# Extra vendor:device IDs to claim with vfio-pci, set per host in the inventory
+# for non-GPU passthrough (HBAs, NVMe, capture cards). Example on `watt`:
+#   vfio_bind_extra_pci_ids: ["1000:0072", "8086:2700"]
+vfio_bind_extra_pci_ids: []
+
+# Extra kernel modules that must not claim a device before vfio-pci does.
+# Rendered as `softdep <module> pre: vfio-pci`. Example on `watt`:
+#   vfio_bind_extra_softdeps: ["mpt3sas", "nvme"]
+vfio_bind_extra_softdeps: []
+
+# Contributed by the gpu_passthrough role via set_fact; not normally set by hand.
+# gpu_passthrough discovers the card with lspci and hands the result here rather
+# than writing the file itself, so this file keeps exactly one author.
+vfio_bind_gpu_pci_ids: []
+vfio_bind_gpu_softdeps: []
+
+# Verify every device being claimed sits alone in its IOMMU group before writing
+# anything. A shared group means passing one device through drags its neighbours
+# with it, which is what an ACS override papers over. Fail loudly instead.
+vfio_bind_assert_iommu_isolation: true
+
+# Rebuild the initramfs when the file changes. The binding only takes effect on
+# the next boot either way; leaving this on means the reboot is sufficient.
+vfio_bind_update_initramfs: true
