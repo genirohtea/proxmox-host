@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  author: genirohtea
+  description: Configures and persists the CPU frequency scaling governor
+  license: BSD-3-Clause
+  min_ansible_version: "2.21"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+  galaxy_tags:
+    - proxmox
+    - cpu
+    - power
+
+dependencies: []

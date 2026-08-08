@@ -7,6 +7,10 @@
       ansible.builtin.command: efibootmgr -v
       register: efibootmgr_output
       changed_when: false
+      # Read-only detection. Without this the task is skipped under --check,
+      # leaving `bootloader` undefined and failing the role's own assert, so
+      # the command line changes below could never be dry-run.
+      check_mode: false
       ignore_errors: true
 
     - name: "Set bootloader to GRUB if EFI variables indicate GRUB"
@@ -44,18 +48,42 @@
           - cpu_type != "UNKNOWN"
         fail_msg: "cpu_type could not be determined from ansible facts: {{ ansible_facts['processor'] }}"
 
-    - name: "Set additional GRUB arguments based on CPU type"
+    - name: "Set the IOMMU kernel parameters based on CPU type"
+      # Each parameter is carried as a name/value pair rather than one string,
+      # so the tasks below can update or append them individually. The kernel
+      # command line is shared with the `hugepages` and `scaling_governor`
+      # roles; rewriting the whole line here would silently drop whatever those
+      # roles added (hugepages=, amd_pstate=, ...).
       ansible.builtin.set_fact:
-        additional_grub_args: "{{ 'iommu=pt' if cpu_type == 'AMD' else 'intel_iommu=on iommu=pt' }}"
+        iommu_kernel_parameters: >-
+          {{
+            [{'name': 'iommu', 'value': 'pt'}]
+            if cpu_type == 'AMD'
+            else [{'name': 'intel_iommu', 'value': 'on'},
+                  {'name': 'iommu', 'value': 'pt'}]
+          }}
 
     - name: "Configure IOMMU for GRUB"
       when: bootloader == "GRUB"
       block:
-        - name: "Set GRUB_CMDLINE_LINUX_DEFAULT for AMD or Intel"
+        - name: "Set GRUB IOMMU parameter values"
+          ansible.builtin.replace:
+            path: /etc/default/grub
+            regexp: '(?<!\S){{ item.name }}=[^\s"]+'
+            replace: "{{ item.name }}={{ item.value }}"
+          loop: "{{ iommu_kernel_parameters }}"
+          loop_control:
+            label: "{{ item.name }}={{ item.value }}"
+
+        - name: "Add missing GRUB IOMMU parameters"
           ansible.builtin.lineinfile:
             path: /etc/default/grub
-            regexp: "^GRUB_CMDLINE_LINUX_DEFAULT="
-            line: 'GRUB_CMDLINE_LINUX_DEFAULT="quiet {{ additional_grub_args }}"'
+            regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=")(?![^"]*\b{{ item.name }}=)([^"]*)"$'
+            line: '\1\2 {{ item.name }}={{ item.value }}"'
+            backrefs: true
+          loop: "{{ iommu_kernel_parameters }}"
+          loop_control:
+            label: "{{ item.name }}={{ item.value }}"
 
         - name: "Update GRUB configuration"
           ansible.builtin.command: update-grub
@@ -65,7 +93,7 @@
           ansible.builtin.reboot:
             msg: "Rebooting to apply IOMMU changes"
             connect_timeout: 5
-            reboot_timeout: 300
+            reboot_timeout: 600
             pre_reboot_delay: 5
             post_reboot_delay: 30
             test_command: uptime
@@ -78,12 +106,24 @@
     - name: "Configure IOMMU for systemd-boot"
       when: bootloader == "systemd-boot"
       block:
-        # root=ZFS=rpool/ROOT/pve-1 boot=zfs
-        - name: "Set kernel command line for AMD or Intel"
+        - name: "Set systemd-boot IOMMU parameter values"
+          ansible.builtin.replace:
+            path: /etc/kernel/cmdline
+            regexp: '(?<!\S){{ item.name }}=[^\s"]+'
+            replace: "{{ item.name }}={{ item.value }}"
+          loop: "{{ iommu_kernel_parameters }}"
+          loop_control:
+            label: "{{ item.name }}={{ item.value }}"
+
+        - name: "Add missing systemd-boot IOMMU parameters"
           ansible.builtin.lineinfile:
             path: /etc/kernel/cmdline
-            regexp: "^root="
-            line: "root=ZFS=rpool/ROOT/pve-1 boot=zfs quiet {{ additional_grub_args }}"
+            regexp: '^(?!.*(?:^|\s){{ item.name }}=)(.*\S)\s*$'
+            line: '\1 {{ item.name }}={{ item.value }}'
+            backrefs: true
+          loop: "{{ iommu_kernel_parameters }}"
+          loop_control:
+            label: "{{ item.name }}={{ item.value }}"
 
         - name: "Refresh systemd-boot configuration"
           ansible.builtin.command: pve-efiboot-tool refresh
@@ -93,7 +133,7 @@
           ansible.builtin.reboot:
             msg: "Rebooting to apply IOMMU changes"
             connect_timeout: 5
-            reboot_timeout: 300
+            reboot_timeout: 600
             pre_reboot_delay: 5
             post_reboot_delay: 30
             test_command: uptime

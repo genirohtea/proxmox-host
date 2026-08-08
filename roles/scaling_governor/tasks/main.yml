@@ -1,0 +1,107 @@
+---
+- name: "Configure the amd_pstate scaling driver"
+  ansible.builtin.include_tasks: amd_pstate.yml
+  when: amd_pstate_enabled | bool
+
+# Everything below validates against the driver the host is running *now*. A
+# freshly added amd_pstate parameter does not change the governor list until the
+# next reboot, so the governor applied here must be valid under both the current
+# and the intended driver.
+- name: "Check whether CPU frequency scaling is available"
+  ansible.builtin.stat:
+    path: /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors
+  register: scaling_governor_available_file
+
+- name: "Require CPU frequency scaling support"
+  ansible.builtin.assert:
+    that:
+      - scaling_governor_available_file.stat.exists
+      - scaling_governor_available_file.stat.isreg | default(false)
+    fail_msg: >-
+      CPU frequency scaling is not exposed at
+      /sys/devices/system/cpu/cpu0/cpufreq. Check the CPU driver, kernel
+      configuration, and virtualization environment.
+
+- name: "Read the governors supported by the CPU"
+  ansible.builtin.slurp:
+    src: /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors
+  register: scaling_governor_available
+
+- name: "Validate the requested CPU scaling governor"
+  ansible.builtin.assert:
+    that:
+      - scaling_governor in ((scaling_governor_available.content | b64decode).split())
+    fail_msg: >-
+      Governor '{{ scaling_governor }}' is unavailable. Supported governors:
+      {{ (scaling_governor_available.content | b64decode).split() | join(', ') }}.
+      Note that the available list depends on the scaling driver: amd_pstate in
+      `active` mode exposes only `performance` and `powersave`, while
+      acpi-cpufreq and amd_pstate in `guided`/`passive` mode expose the generic
+      governors including `schedutil`.
+
+- name: "Read the scaling driver currently in use"
+  ansible.builtin.slurp:
+    src: /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver
+  register: scaling_governor_driver
+
+- name: "Determine whether the requested governor is safe under the running driver"
+  # `powersave` means opposite things depending on the driver. Under
+  # intel_pstate and amd-pstate-epp it ramps on demand; under acpi-cpufreq it
+  # pins every core to cpuinfo_min_freq permanently. Enabling amd_pstate needs a
+  # reboot, so there is a window where the intended driver is configured but
+  # acpi-cpufreq is still loaded -- applying `powersave` in that window would
+  # throttle the host until it reboots.
+  ansible.builtin.set_fact:
+    scaling_governor_is_static_powersave: >-
+      {{ scaling_governor == 'powersave'
+        and (scaling_governor_driver.content | b64decode | trim) == 'acpi-cpufreq' }}
+
+- name: "Report a deferred governor change"
+  ansible.builtin.debug:
+    msg: >-
+      Not applying '{{ scaling_governor }}' now: the running scaling driver is
+      acpi-cpufreq, under which `powersave` is a static governor that would pin
+      every core to its minimum frequency. The governor is persisted for the
+      next boot, by which point amd_pstate should be the active driver. Reboot
+      to complete the change.
+  when: scaling_governor_is_static_powersave | bool
+
+- name: "Install the CPU scaling governor helper"
+  ansible.builtin.template:
+    src: set-cpu-scaling-governor.sh.j2
+    dest: /usr/local/sbin/set-cpu-scaling-governor
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: "Install the persistent CPU scaling governor service"
+  ansible.builtin.template:
+    src: scaling-governor.service.j2
+    dest: /etc/systemd/system/scaling-governor.service
+    owner: root
+    group: root
+    mode: "0644"
+  register: scaling_governor_service_file
+  become: true
+
+- name: "Reload systemd after installing the governor service"
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: scaling_governor_service_file.changed
+  become: true
+
+- name: "Enable the CPU scaling governor service"
+  ansible.builtin.systemd:
+    name: scaling-governor.service
+    enabled: true
+  become: true
+
+- name: "Apply the CPU scaling governor"
+  ansible.builtin.command: /usr/local/sbin/set-cpu-scaling-governor
+  register: scaling_governor_apply
+  changed_when: >-
+    'Changed CPU scaling governor' in scaling_governor_apply.stdout
+    or 'Changed energy performance preference' in scaling_governor_apply.stdout
+  when: not (scaling_governor_is_static_powersave | bool)
+  become: true

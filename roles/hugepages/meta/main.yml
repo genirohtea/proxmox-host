@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  author: genirohtea
+  description: "Reserves 2 MiB hugepages on a Proxmox host"
+  license: BSD-3-Clause
+  min_ansible_version: "2.21"
+  platforms:
+    - name: Debian
+      versions:
+        - all
+  galaxy_tags:
+    - proxmox
+    - hugepages
+
+dependencies: []

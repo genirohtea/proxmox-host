@@ -1,0 +1,11 @@
+[Unit]
+Description=Set CPU scaling governor to {{ scaling_governor }}
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/set-cpu-scaling-governor
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

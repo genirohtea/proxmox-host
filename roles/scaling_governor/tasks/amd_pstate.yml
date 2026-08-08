@@ -1,0 +1,100 @@
+---
+# Adds `amd_pstate=<mode>` to the kernel command line on AMD CPUs that expose
+# CPPC. The parameter only takes effect after a reboot; until then the host
+# keeps whatever scaling driver it booted with, which is why the governor tasks
+# in main.yml validate against the *running* driver rather than the intended one.
+#
+# The edits here are additive by design: `replace` updates the value when the
+# parameter is already present, and `lineinfile` appends it when it is not.
+# Never rewrite the whole command line -- the `hugepages` role and this one both
+# contribute parameters to the same file, and a whole-line write silently drops
+# whichever parameters the other role added.
+
+- name: "Detect an AMD CPU"
+  ansible.builtin.set_fact:
+    amd_pstate_is_amd: >-
+      {{ 'AuthenticAMD' in (ansible_facts['processor'] | join(' '))
+        or 'AMD' in (ansible_facts['processor'] | join(' ')) }}
+
+- name: "Configure the amd_pstate scaling driver"
+  when: amd_pstate_is_amd | bool
+  become: true
+  block:
+    - name: "Check whether the CPU advertises CPPC"
+      # amd_pstate needs CPPC (Zen 2 and newer, and it must be enabled in
+      # firmware). Without the flag the driver refuses to load and the host
+      # would boot with a parameter that does nothing.
+      ansible.builtin.command:
+        cmd: grep -qw cppc /proc/cpuinfo
+      register: amd_pstate_cppc
+      changed_when: false
+      failed_when: false
+
+    - name: "Report a CPU without CPPC support"
+      ansible.builtin.debug:
+        msg: >-
+          The CPU is AMD but does not advertise the `cppc` flag, so amd_pstate
+          cannot load. Leaving the kernel command line unchanged; the host will
+          continue to use acpi-cpufreq. Check that CPPC is enabled in firmware.
+      when: amd_pstate_cppc.rc != 0
+
+    - name: "Add the amd_pstate kernel parameter"
+      when: amd_pstate_cppc.rc == 0
+      block:
+        - name: "Validate the requested amd_pstate mode"
+          ansible.builtin.assert:
+            that:
+              - amd_pstate_mode in ["guided", "passive", "active"]
+              - amd_pstate_mode != "active" or scaling_governor in ["performance", "powersave"]
+            fail_msg: >-
+              amd_pstate_mode must be one of guided, passive, or active, and
+              `active` supports only the `performance` and `powersave`
+              governors. Requested mode '{{ amd_pstate_mode }}' with governor
+              '{{ scaling_governor }}'.
+
+        - name: "Require a known bootloader"
+          ansible.builtin.assert:
+            that:
+              - bootloader_type in ["grub", "systemd"]
+            fail_msg: >-
+              bootloader_type must be either 'grub' or 'systemd' to edit the
+              kernel command line. Set it for this host in the inventory.
+
+        - name: "Set the systemd-boot amd_pstate parameter value"
+          ansible.builtin.replace:
+            path: /etc/kernel/cmdline
+            regexp: '(?<!\S)amd_pstate=[^\s"]+'
+            replace: "amd_pstate={{ amd_pstate_mode }}"
+          when: bootloader_type == "systemd"
+          notify: "Refresh Proxmox boot configuration for the scaling governor"
+
+        - name: "Add the missing systemd-boot amd_pstate parameter"
+          ansible.builtin.lineinfile:
+            path: /etc/kernel/cmdline
+            regexp: '^(?!.*(?:^|\s)amd_pstate=)(.*\S)\s*$'
+            line: '\1 amd_pstate={{ amd_pstate_mode }}'
+            backrefs: true
+          when: bootloader_type == "systemd"
+          notify: "Refresh Proxmox boot configuration for the scaling governor"
+
+        - name: "Set the GRUB amd_pstate parameter value"
+          ansible.builtin.replace:
+            path: /etc/default/grub
+            regexp: '(?<!\S)amd_pstate=[^\s"]+'
+            replace: "amd_pstate={{ amd_pstate_mode }}"
+          when: bootloader_type == "grub"
+          notify: "Update GRUB configuration for the scaling governor"
+
+        - name: "Add the missing GRUB amd_pstate parameter"
+          ansible.builtin.lineinfile:
+            path: /etc/default/grub
+            regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=")(?![^"]*\bamd_pstate=)([^"]*)"$'
+            line: '\1\2 amd_pstate={{ amd_pstate_mode }}"'
+            backrefs: true
+          when: bootloader_type == "grub"
+          notify: "Update GRUB configuration for the scaling governor"
+
+        # See the identical note in the hugepages role: handlers otherwise run
+        # at the end of the play, after gpu_passthrough has already rebooted.
+        - name: "Write the boot configuration before any later role reboots"
+          ansible.builtin.meta: flush_handlers

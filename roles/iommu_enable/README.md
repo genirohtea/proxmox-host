@@ -2,6 +2,13 @@
 
 This role enables IOMMU (Input-Output Memory Management Unit) on a Proxmox host to support device passthrough.
 
+## Kernel command line handling
+
+The role adds `iommu=pt` (AMD) or `intel_iommu=on iommu=pt` (Intel) to `/etc/default/grub` or `/etc/kernel/cmdline`, depending on the bootloader it detects via `efibootmgr`.
+
+Parameters are added individually: existing values are updated in place and missing ones are appended. The role must never rewrite the command line wholesale, because the `hugepages` and `scaling_governor`
+roles contribute parameters to the same line and a whole-line write silently drops them (`hugepages=`, `amd_pstate=`, and so on) at the next reboot.
+
 ## Requirements
 
 Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto

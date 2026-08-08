@@ -1,0 +1,82 @@
+---
+- name: "Configure 2 MiB hugepages"
+  become: true
+  when: (hugepages_2mb_gib | int) > 0
+  block:
+    - name: "Validate the hugepage configuration"
+      ansible.builtin.assert:
+        that:
+          - bootloader_type in ["grub", "systemd"]
+          - (hugepages_2mb_gib | int | string) == (hugepages_2mb_gib | string)
+        fail_msg: >-
+          hugepages_2mb_gib must be a positive whole number and
+          bootloader_type must be either 'grub' or 'systemd'.
+
+    - name: "Calculate the number of 2 MiB hugepages"
+      ansible.builtin.set_fact:
+        hugepages_2mb_count: "{{ (hugepages_2mb_gib | int) * 512 }}"
+
+    - name: "Configure hugepages in the systemd-boot kernel command line"
+      when: bootloader_type == "systemd"
+      block:
+        - name: "Verify the systemd-boot kernel command line exists"
+          ansible.builtin.stat:
+            path: /etc/kernel/cmdline
+          register: hugepages_kernel_cmdline
+
+        - name: "Require a systemd-boot kernel command line"
+          ansible.builtin.assert:
+            that: hugepages_kernel_cmdline.stat.exists
+            fail_msg: "/etc/kernel/cmdline does not exist."
+
+        - name: "Set systemd-boot hugepage parameter values"
+          ansible.builtin.replace:
+            path: /etc/kernel/cmdline
+            regexp: '(?<!\S){{ item.name }}=[^\s"]+'
+            replace: "{{ item.name }}={{ item.value }}"
+          loop: &hugepage_parameters
+            - name: default_hugepagesz
+              value: 2M
+            - name: hugepagesz
+              value: 2M
+            - name: hugepages
+              value: "{{ hugepages_2mb_count }}"
+          notify: "Refresh Proxmox boot configuration"
+
+        - name: "Add missing systemd-boot hugepage parameters"
+          ansible.builtin.lineinfile:
+            path: /etc/kernel/cmdline
+            regexp: "^(?!.*(?:^|\\s){{ item.name }}=)(.*\\S)\\s*$"
+            line: "\\1 {{ item.name }}={{ item.value }}"
+            backrefs: true
+          loop: *hugepage_parameters
+          notify: "Refresh Proxmox boot configuration"
+
+    - name: "Configure hugepages in the GRUB kernel command line"
+      when: bootloader_type == "grub"
+      block:
+        - name: "Set GRUB hugepage parameter values"
+          ansible.builtin.replace:
+            path: /etc/default/grub
+            regexp: '(?<!\S){{ item.name }}=[^\s"]+'
+            replace: "{{ item.name }}={{ item.value }}"
+          loop: *hugepage_parameters
+          notify: "Update GRUB configuration"
+
+        - name: "Add missing GRUB hugepage parameters"
+          ansible.builtin.lineinfile:
+            path: /etc/default/grub
+            regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=")(?![^"]*\b{{ item.name }}=)([^"]*)"$'
+            line: '\1\2 {{ item.name }}={{ item.value }}"'
+            backrefs: true
+          loop: *hugepage_parameters
+          notify: "Update GRUB configuration"
+
+    # Handlers normally run at the end of the play, which is AFTER the reboot
+    # that gpu_passthrough triggers from inside iommu_enable. Staging a
+    # parameter into the command line without pushing it to the ESP or GRUB
+    # first means the reboot boots the old configuration and the change waits
+    # for the next one. Flush now so the bootloader is current before any later
+    # role reboots.
+    - name: "Write the boot configuration before any later role reboots"
+      ansible.builtin.meta: flush_handlers

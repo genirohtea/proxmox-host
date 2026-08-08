@@ -1,0 +1,49 @@
+---
+# Must be one of the governors exposed by
+# /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors.
+#
+# `powersave` is dynamic and correct under `intel_pstate` and under
+# `amd_pstate=active` (the amd-pstate-epp driver), which is what this role
+# configures by default.
+#
+# It is NOT safe under `acpi-cpufreq`, where `powersave` is a *static* governor
+# that parks every core at cpuinfo_min_freq forever. That is the combination
+# that has to be survived on the reboot into amd_pstate, so both the tasks and
+# the boot-time helper refuse to apply `powersave` while acpi-cpufreq is the
+# running driver. See the README.
+scaling_governor: powersave
+
+# Enable the amd_pstate scaling driver on AMD CPUs that support CPPC. Without
+# it the kernel falls back to acpi-cpufreq, which only knows the coarse ACPI
+# P-states and cannot use the CPU's full boost range.
+amd_pstate_enabled: true
+
+# One of `guided`, `passive`, or `active`.
+#
+#   guided  - CPPC hardware picks the frequency within the range the governor
+#             requests. Registers as a normal cpufreq driver, so the generic
+#             governors (schedutil, ondemand, conservative, ...) stay available.
+#   passive - Generic governors drive the frequency directly via CPPC.
+#   active  - Registers the `amd-pstate-epp` driver, which handles scaling in
+#             firmware. This REPLACES the generic governor list with just
+#             `performance` and `powersave`; `scaling_governor` must be one of
+#             those two if you select this mode.
+amd_pstate_mode: active
+
+# Energy performance preference. Under `amd_pstate=active` the governor picks
+# the range and the EPP picks where in that range the firmware sits, so the
+# governor name alone does not determine power behaviour: the driver defaults
+# EPP to `performance`, which makes the `powersave` governor behave close to
+# full performance.
+#
+# One of the values in energy_performance_available_preferences -- typically
+# default, performance, balance_performance, balance_power, power. Set to an
+# empty string to leave the firmware default alone.
+#
+# Only exists under amd-pstate-epp and intel_pstate; the role and the boot-time
+# helper both skip it when the sysfs attribute is absent.
+amd_pstate_epp: balance_power
+
+# Proxmox installations use either GRUB or systemd-boot. Set per host in the
+# inventory; the role skips the kernel command line edit when it is unknown.
+bootloader_type: unknown

@@ -1,0 +1,7 @@
+---
+# Total host memory, in GiB, to reserve as 2 MiB hugepages. A value of zero
+# leaves the host unchanged.
+hugepages_2mb_gib: 0
+
+# Proxmox installations use either GRUB or systemd-boot.
+bootloader_type: unknown

@@ -1,0 +1,16 @@
+---
+# These names are deliberately role-specific. The `hugepages` role defines
+# handlers that run the same two commands, and duplicate handler names across
+# roles in one play are ambiguous -- Ansible resolves the notify to whichever
+# definition it saw last, not necessarily this role's.
+- name: "Refresh Proxmox boot configuration for the scaling governor"
+  ansible.builtin.command:
+    cmd: proxmox-boot-tool refresh
+  changed_when: true
+  become: true
+
+- name: "Update GRUB configuration for the scaling governor"
+  ansible.builtin.command:
+    cmd: update-grub
+  changed_when: true
+  become: true

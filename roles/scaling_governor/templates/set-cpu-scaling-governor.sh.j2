@@ -1,0 +1,94 @@
+{{ '#!/bin/sh' }}
+set -eu
+
+requested_governor={{ scaling_governor | quote }}
+changed=false
+found=false
+
+# `powersave` is dynamic under intel_pstate and amd-pstate-epp, but under
+# acpi-cpufreq it is a static governor that parks every core at
+# cpuinfo_min_freq for good. This service runs at every boot, so if the
+# intended driver ever fails to load -- amd_pstate dropped from the kernel
+# command line, CPPC disabled in firmware, a kernel that refuses to bind -- a
+# blind `powersave` would silently throttle the host to its minimum clock.
+# Substitute a dynamic governor instead and say so loudly.
+driver_file=/sys/devices/system/cpu/cpu0/cpufreq/scaling_driver
+if [ "$requested_governor" = powersave ] && [ -r "$driver_file" ] &&
+    [ "$(cat "$driver_file")" = acpi-cpufreq ]; then
+    available_file=/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors
+    for fallback in schedutil ondemand performance; do
+        if grep -qw -- "$fallback" "$available_file"; then
+            echo "WARNING: refusing to set 'powersave' under the acpi-cpufreq driver," \
+                "which would pin every core to its minimum frequency." \
+                "Using '$fallback' instead. Check that amd_pstate loaded:" \
+                "expected amd-pstate-epp, found acpi-cpufreq." >&2
+            requested_governor=$fallback
+            break
+        fi
+    done
+fi
+
+for governor_file in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+    [ -e "$governor_file" ] || continue
+    found=true
+
+    available_file=${governor_file%/scaling_governor}/scaling_available_governors
+    if ! grep -qw -- "$requested_governor" "$available_file"; then
+        echo "Governor '$requested_governor' is not supported by ${governor_file%/cpufreq/scaling_governor}" >&2
+        exit 1
+    fi
+
+    current_governor=$(cat "$governor_file")
+    if [ "$current_governor" != "$requested_governor" ]; then
+        printf '%s\n' "$requested_governor" >"$governor_file"
+        changed=true
+    fi
+done
+
+if [ "$found" = false ]; then
+    echo "No CPU scaling governor controls were found" >&2
+    exit 1
+fi
+
+if [ "$changed" = true ]; then
+    echo "Changed CPU scaling governor to $requested_governor"
+else
+    echo "CPU scaling governor is already $requested_governor"
+fi
+
+# The energy performance preference decides where within the governor's range
+# the firmware actually sits. It exists only under amd-pstate-epp and
+# intel_pstate, so its absence is not an error -- under any other driver there
+# is nothing to set.
+requested_epp={{ amd_pstate_epp | default('') | quote }}
+if [ -n "$requested_epp" ]; then
+    epp_changed=false
+    epp_found=false
+
+    for epp_file in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+        [ -e "$epp_file" ] || continue
+        epp_found=true
+
+        epp_available=${epp_file%/energy_performance_preference}/energy_performance_available_preferences
+        if [ -r "$epp_available" ] && ! grep -qw -- "$requested_epp" "$epp_available"; then
+            echo "Energy performance preference '$requested_epp' is not supported by" \
+                "${epp_file%/cpufreq/energy_performance_preference}." \
+                "Supported: $(cat "$epp_available")" >&2
+            exit 1
+        fi
+
+        if [ "$(cat "$epp_file")" != "$requested_epp" ]; then
+            printf '%s\n' "$requested_epp" >"$epp_file"
+            epp_changed=true
+        fi
+    done
+
+    if [ "$epp_found" = false ]; then
+        echo "No energy performance preference control found; the running driver" \
+            "does not support it. Leaving power behaviour to the governor alone." >&2
+    elif [ "$epp_changed" = true ]; then
+        echo "Changed energy performance preference to $requested_epp"
+    else
+        echo "Energy performance preference is already $requested_epp"
+    fi
+fi
