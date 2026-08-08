@@ -19,7 +19,7 @@
       tags: cpu_microcode
     - role: scaling_governor
       tags: scaling_governor
-    # Every role that stages kernel command line parameters must run BEFORE
+    # Every role that stages or removes kernel command line parameters must run BEFORE
     # gpu_passthrough, which reboots the host from inside iommu_enable. A role
     # placed after it stages its parameter into /etc/kernel/cmdline with no
     # further reboot in the play, so the change sits pending until someone
@@ -27,7 +27,6 @@
     # up nowhere near the ordering that caused it.
     - role: hugepages
       tags: hugepages
-      when: (hugepages_2mb_gib | default(0) | int) > 0
     - role: intel_graphics
       tags: intel_graphics
     - role: ipmi_fan_control

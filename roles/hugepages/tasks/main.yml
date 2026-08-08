@@ -1,17 +1,41 @@
 ---
+- name: "Validate the hugepage configuration"
+  ansible.builtin.assert:
+    that:
+      - bootloader_type in ["grub", "systemd"]
+      - (hugepages_2mb_gib | int | string) == (hugepages_2mb_gib | string)
+      - (hugepages_2mb_gib | int) >= 0
+    fail_msg: >-
+      hugepages_2mb_gib must be a non-negative whole number and
+      bootloader_type must be either 'grub' or 'systemd'.
+
+- name: "Remove the managed 2 MiB hugepage reservation"
+  become: true
+  when: (hugepages_2mb_gib | int) == 0
+  block:
+    - name: "Remove hugepage parameters from the systemd-boot kernel command line"
+      ansible.builtin.replace:
+        path: /etc/kernel/cmdline
+        regexp: '\s+(?:default_hugepagesz|hugepagesz|hugepages)=[^\s"]+'
+        replace: ''
+      when: bootloader_type == "systemd"
+      notify: "Refresh Proxmox boot configuration"
+
+    - name: "Remove hugepage parameters from the GRUB kernel command line"
+      ansible.builtin.replace:
+        path: /etc/default/grub
+        regexp: '\s+(?:default_hugepagesz|hugepagesz|hugepages)=[^\s"]+'
+        replace: ''
+      when: bootloader_type == "grub"
+      notify: "Update GRUB configuration"
+
+    - name: "Write hugepage removal before any later role reboots"
+      ansible.builtin.meta: flush_handlers
+
 - name: "Configure 2 MiB hugepages"
   become: true
   when: (hugepages_2mb_gib | int) > 0
   block:
-    - name: "Validate the hugepage configuration"
-      ansible.builtin.assert:
-        that:
-          - bootloader_type in ["grub", "systemd"]
-          - (hugepages_2mb_gib | int | string) == (hugepages_2mb_gib | string)
-        fail_msg: >-
-          hugepages_2mb_gib must be a positive whole number and
-          bootloader_type must be either 'grub' or 'systemd'.
-
     - name: "Calculate the number of 2 MiB hugepages"
       ansible.builtin.set_fact:
         hugepages_2mb_count: "{{ (hugepages_2mb_gib | int) * 512 }}"
