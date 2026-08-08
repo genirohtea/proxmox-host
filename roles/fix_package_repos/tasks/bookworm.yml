@@ -1,0 +1,57 @@
+---
+# Classic one-line ".list" APT sources for Debian bookworm (Proxmox VE 8).
+#
+# Reference layout this produces in /etc/apt/sources.list:
+#   deb http://ftp.us.debian.org/debian bookworm main contrib
+#   deb http://ftp.us.debian.org/debian bookworm-updates main contrib
+#   deb http://security.debian.org bookworm-security main contrib
+#   deb http://download.proxmox.com/debian bookworm pve-no-subscription
+
+- name: "Check if the pve-enterprise.list file exists"
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list.d/pve-enterprise.list
+  register: pve_enterprise_list
+
+- name: "Disable the enterprise pve repository"
+  ansible.builtin.lineinfile:
+    path: "/etc/apt/sources.list.d/pve-enterprise.list"
+    search_string: "deb https://enterprise.proxmox.com/debian/pve {{ ansible_facts['distribution_release'] }} pve-enterprise"
+    line: "# deb https://enterprise.proxmox.com/debian/pve {{ ansible_facts['distribution_release'] }} pve-enterprise"
+  when: pve_enterprise_list.stat.exists
+
+- name: "Configure the Ceph Reef no-subscription repository"
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/ceph.list
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # The enterprise repository requires a paid Proxmox subscription.
+      # deb https://enterprise.proxmox.com/debian/ceph-reef bookworm enterprise
+      deb http://download.proxmox.com/debian/ceph-reef bookworm no-subscription
+
+- name: "Check if /etc/apt/sources.list exists"
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list
+  register: sources_list
+
+- name: "Enable the pve-no-subscription repository"
+  ansible.builtin.lineinfile:
+    dest: /etc/apt/sources.list
+    state: present
+    search_string: "deb http://download.proxmox.com/debian {{ ansible_facts['distribution_release'] }} pve-no-subscription"
+    line: "deb http://download.proxmox.com/debian {{ ansible_facts['distribution_release'] }} pve-no-subscription"
+  when: sources_list.stat.exists
+
+- name: "Ensure debian default sources are correct"
+  ansible.builtin.lineinfile:
+    dest: /etc/apt/sources.list
+    state: present
+    regexp: |
+      ^deb {{ item.uri }} \w+{{ item.repo }} main contrib
+    line: "deb {{ item.uri }} {{ ansible_facts['distribution_release'] }}{{ item.repo }} main contrib"
+  with_items:
+    - {uri: "http://ftp.us.debian.org/debian", repo: ""}
+    - {uri: "http://ftp.us.debian.org/debian", repo: "-updates"}
+    - {uri: "http://security.debian.org", repo: "-security"}
+  when: sources_list.stat.exists

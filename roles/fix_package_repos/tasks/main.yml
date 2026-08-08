@@ -1,79 +1,25 @@
 ---
 # tasks file for fix_package_repos
-- name: "Check if file exists"
-  ansible.builtin.stat:
-    path: /etc/apt/sources.list.d/pve-enterprise.list
-  register: file_status
+#
+# Debian 12 (bookworm / Proxmox VE 8) uses classic one-line ".list" APT sources.
+# Debian 13 (trixie / Proxmox VE 9) uses the deb822 ".sources" format. Detect the
+# release and dispatch to the matching handler so each host type is configured
+# in its native format.
 
-- name: "Print status of file"
-  ansible.builtin.debug:
-    msg: "The file /etc/apt/sources.list.d/pve-enterprise.list exists"
-  when: file_status.stat.exists
+- name: "Configure APT repositories (Debian bookworm / Proxmox VE 8)"
+  ansible.builtin.import_tasks: bookworm.yml
+  when: ansible_facts['distribution_release'] == "bookworm"
 
-- name: "Disable enterprise apt sources list"
-  ansible.builtin.lineinfile:
-    path: "/etc/apt/sources.list.d/pve-enterprise.list"
-    search_string: "deb https://enterprise.proxmox.com/debian/pve {{ ansible_distribution_release }} pve-enterprise"
-    line: "# deb https://enterprise.proxmox.com/debian/pve {{ ansible_distribution_release }} pve-enterprise"
-  when: file_status.stat.exists
+- name: "Configure APT repositories (Debian trixie / Proxmox VE 9)"
+  ansible.builtin.import_tasks: trixie.yml
+  when: ansible_facts['distribution_release'] == "trixie"
 
-- name: "Check if file exists"
-  ansible.builtin.stat:
-    path: /etc/apt/sources.list.d/ceph.list
-  register: file_status
-
-- name: "Print status of file"
-  ansible.builtin.debug:
-    msg: "The file /etc/apt/sources.list.d/ceph.list exists"
-  when: file_status.stat.exists
-
-- name: "Disable enterprise ceph sources list"
-  ansible.builtin.lineinfile:
-    path: "/etc/apt/sources.list.d/ceph.list"
-    search_string: "deb https://enterprise.proxmox.com/debian/ceph-quincy bookworm enterprise"
-    line: "# deb https://enterprise.proxmox.com/debian/ceph-quincy {{ ansible_distribution_release }} enterprise"
-  when: file_status.stat.exists
-
-- name: "Check if file exists"
-  ansible.builtin.stat:
-    path: /etc/apt/sources.list
-  register: file_status
-
-- name: "Print status of file"
-  ansible.builtin.debug:
-    msg: "The file /etc/apt/sources.list exists"
-  when: file_status.stat.exists
-
-- name: "Enable pve-no-subscription repository"
-  ansible.builtin.lineinfile:
-    dest: /etc/apt/sources.list
-    state: present
-    search_string: "deb http://download.proxmox.com/debian {{ ansible_distribution_release }} pve-no-subscription"
-    line: "deb http://download.proxmox.com/debian {{ ansible_distribution_release }} pve-no-subscription"
-  when: file_status.stat.exists
-
-- name: "Check if file exists"
-  ansible.builtin.stat:
-    path: /etc/apt/sources.list
-  register: file_status
-
-- name: "Print status of file"
-  ansible.builtin.debug:
-    msg: "The file /etc/apt/sources.list exists"
-  when: file_status.stat.exists
-
-- name: "Ensure debian default sources are correct"
-  ansible.builtin.lineinfile:
-    dest: /etc/apt/sources.list
-    state: present
-    regexp: |
-      ^deb {{ item.uri }} \w+{{ item.repo }} main contrib
-    line: "deb {{ item.uri }} {{ ansible_distribution_release }}{{ item.repo }} main contrib"
-  with_items:
-    - {uri: "http://ftp.us.debian.org/debian", repo: ""}
-    - {uri: "http://ftp.us.debian.org/debian", repo: "-updates"}
-    - {uri: "http://security.debian.org", repo: "-security"}
-  when: file_status.stat.exists
+- name: "Fail on an unsupported Debian release"
+  ansible.builtin.fail:
+    msg: >-
+      fix_package_repos only supports Debian bookworm and trixie; detected
+      '{{ ansible_facts['distribution_release'] }}'.
+  when: ansible_facts['distribution_release'] not in ["bookworm", "trixie"]
 
 - name: "Update package cache (debian)"
   ansible.builtin.apt:

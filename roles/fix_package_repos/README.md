@@ -1,6 +1,7 @@
 # Fix Package Repos
 
-This role configures Proxmox VE package repositories to use the no-subscription sources and ensures Debian default sources are correct.
+This role configures Proxmox VE package repositories to use the no-subscription sources and ensures Debian default sources are correct. It also configures the supported Ceph no-subscription repository: Reef on
+PVE 8, Squid on PVE 9.0/9.1, and Tentacle on PVE 9.2.
 
 ## Requirements
 

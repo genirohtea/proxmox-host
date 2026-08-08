@@ -1,0 +1,125 @@
+---
+# deb822 ".sources" APT sources for Debian trixie (Proxmox VE 9).
+#
+# The PVE 8->9 upgrade adds ".sources" files for the Proxmox repos but leaves the
+# old ".list" files and the monolithic /etc/apt/sources.list in place, producing
+# duplicate repositories. This handler makes trixie fully deb822: it writes the
+# Debian base/security and Proxmox no-subscription ".sources", disables the
+# enterprise repos, then removes the now-redundant legacy entries.
+
+# --- Debian base + security (deb822) ---
+- name: "Configure the Debian base + security repositories (deb822)"
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/debian.sources
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      Types: deb
+      URIs: {{ fix_package_repos_debian_mirror }}
+      Suites: {{ ansible_facts['distribution_release'] }} {{ ansible_facts['distribution_release'] }}-updates
+      Components: {{ fix_package_repos_debian_components }}
+      Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+      Types: deb
+      URIs: {{ fix_package_repos_debian_security_mirror }}
+      Suites: {{ ansible_facts['distribution_release'] }}-security
+      Components: {{ fix_package_repos_debian_components }}
+      Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+# --- Proxmox repositories (deb822) ---
+- name: "Check if the deb822 pve-enterprise repository exists"
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list.d/pve-enterprise.sources
+  register: pve_enterprise_sources
+
+- name: "Disable the deb822 pve-enterprise repository"
+  ansible.builtin.lineinfile:
+    path: /etc/apt/sources.list.d/pve-enterprise.sources
+    regexp: "^Enabled:"
+    line: "Enabled: false"
+    insertafter: EOF
+  when: pve_enterprise_sources.stat.exists
+
+- name: "Read the installed Proxmox VE version"
+  ansible.builtin.command: pveversion
+  register: fix_package_repos_pve_version
+  changed_when: false
+
+- name: "Select the Ceph release supported by this Proxmox VE version"
+  ansible.builtin.set_fact:
+    fix_package_repos_ceph_release: >-
+      {{
+        'ceph-tentacle'
+        if fix_package_repos_pve_version.stdout is match('^pve-manager/9\.2(\.|/)')
+        else 'ceph-squid'
+      }}
+
+- name: "Configure the Ceph no-subscription repository (deb822)"
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/ceph.sources
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      Types: deb
+      URIs: http://download.proxmox.com/debian/{{ fix_package_repos_ceph_release }}
+      Suites: {{ ansible_facts['distribution_release'] }}
+      Components: no-subscription
+      Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+
+# Proxmox VE 9 tooling (and pve8to9) names the no-subscription repo file
+# "proxmox.sources". Standardize on that name so the role does not create a
+# second file alongside it. The content matches what pve8to9 writes, so this is
+# a no-op on hosts that already carry proxmox.sources.
+- name: "Enable the deb822 pve-no-subscription repository (proxmox.sources)"
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/proxmox.sources
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      Types: deb
+      URIs: http://download.proxmox.com/debian/pve
+      Suites: {{ ansible_facts['distribution_release'] }}
+      Components: pve-no-subscription
+      Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+
+- name: "Remove the legacy pve-no-subscription.sources (superseded by proxmox.sources)"
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/pve-no-subscription.sources
+    state: absent
+
+# --- Retire legacy bookworm-style entries now superseded by .sources ---
+- name: "Neutralize the legacy monolithic /etc/apt/sources.list"
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    content: |
+      # Managed by the fix_package_repos Ansible role.
+      # On Debian trixie / Proxmox VE 9 all repositories are defined in the
+      # deb822 files under /etc/apt/sources.list.d/*.sources. This file is
+      # intentionally left without active entries.
+
+# debian.sources and proxmox.sources are written unconditionally above, so the
+# legacy ".list" files they supersede can be removed. (If either copy had
+# failed, the play would already have stopped, so reaching here means both
+# exist.) These lines duplicate the deb822 files and trigger apt's "configured
+# multiple times" warnings until removed.
+- name: "Remove legacy .list repos superseded by debian.sources / proxmox.sources"
+  ansible.builtin.file:
+    path: "/etc/apt/sources.list.d/{{ item }}"
+    state: absent
+  loop:
+    - pve-enterprise.list
+    - deb_debian_org_debian.list
+    - security_debian_org_debian_security.list
+
+# ceph.sources is written above, so the legacy file can always be retired.
+- name: "Remove the legacy ceph.list superseded by ceph.sources"
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/ceph.list
+    state: absent

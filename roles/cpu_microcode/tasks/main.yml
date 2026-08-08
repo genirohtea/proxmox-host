@@ -1,33 +1,23 @@
 ---
 - name: "Current ansible processor"
   ansible.builtin.debug:
-    msg: "{{ ansible_processor }}"
+    msg: "{{ ansible_facts['processor'] }}"
 
 - name: "Set the vendor name"
   ansible.builtin.set_fact:
-    cpu_vendor: "{{ ansible_processor[1] }}"
+    cpu_vendor: "{{ ansible_facts['processor'][1] }}"
 
 - name: "Current processor vendor name"
   ansible.builtin.debug:
     msg: "{{ cpu_vendor }}"
 
-- name: "Add debian repo package for intel"
-  apt_repository:
-    repo: deb http://deb.debian.org/debian {{ ansible_distribution_release }} main contrib non-free-firmware
-    state: present
-  become: true
-
-- name: "Add debian repo package for intel"
-  apt_repository:
-    repo: deb http://security.debian.org/debian-security {{ ansible_distribution_release }}-security main contrib non-free-firmware # yamllint disable-line rule:line-length
-    state: present
-  become: true
-
-- name: "Add debian repo package for intel"
-  apt_repository:
-    repo: deb http://deb.debian.org/debian {{ ansible_distribution_release }}-updates main contrib non-free-firmware
-    state: present
-  become: true
+# The Debian base/security/updates repos (including the non-free-firmware
+# component that ships intel-microcode / amd-microcode) are owned by the
+# fix_package_repos role, which runs earlier in main.yml and writes them as
+# deb822 ".sources". This role used to re-add them with apt_repository, which
+# (a) is deprecated in favour of deb822_repository and (b) recreated the exact
+# legacy ".list" files that fix_package_repos deletes, re-triggering apt's
+# "configured multiple times" warnings on every subsequent apt run.
 
 - name: "Update package cache (apt)"
   apt:

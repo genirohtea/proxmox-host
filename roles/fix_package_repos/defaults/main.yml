@@ -1,2 +1,10 @@
 ---
 # defaults file for fix_package_repos
+
+# Debian base repositories used to build the deb822 debian.sources on trixie
+# (Proxmox VE 9). deb.debian.org is a CDN that routes to a nearby mirror and is
+# the most reliable default; override to pin a specific mirror if preferred
+# (e.g. http://ftp.us.debian.org/debian).
+fix_package_repos_debian_mirror: "http://deb.debian.org/debian"
+fix_package_repos_debian_security_mirror: "http://security.debian.org/debian-security"
+fix_package_repos_debian_components: "main contrib non-free-firmware"
