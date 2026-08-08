@@ -40,6 +40,13 @@
       tags: vfio_bind
       when: graphics_card is not defined
 
+    # After vfio_bind on either path, because it re-enumerates the same devices
+    # that binding claims. Deliberately has no `when:` — the role is a no-op
+    # unless vfio_rescan_hook_pci_ids is set for the host, so there is no
+    # second condition to keep in step with the first.
+    - role: vfio_rescan_hook
+      tags: vfio_rescan_hook
+
     - role: nvidia_vgpu
       tags: nvidia_vgpu
     - role: coral

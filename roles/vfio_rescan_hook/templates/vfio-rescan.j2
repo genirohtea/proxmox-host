@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+#
+# PVE guest hookscript: re-enumerate passed-through PCI devices before start.
+#
+# WHY THIS EXISTS
+#
+# On this hardware a guest stop/start leaves the LSI SAS2008 and the Arc A310 in
+# a state their drivers cannot recover from. The guest comes up with the devices
+# present in `lspci` and useless:
+#
+#   mpt2sas_cm0: Invalid host diagnostic register value      # no drives
+#   i915 ...: [drm] *ERROR* LMEM not initialized by firmware # no render node
+#
+# It is not a hardware fault. Handing the Arc back to the host's own i915 after
+# a remove/rescan initialises it completely - GuC loaded, HuC authenticated, a
+# working render node on the host. The devices simply need re-enumerating, and
+# nothing in the normal start path does that.
+#
+# The documented alternative was a cold power cycle of the node, which is a full
+# outage of every guest on it. This is the same recovery in about three seconds.
+#
+# WHY autoprobe IS DISABLED AROUND THE RESCAN
+#
+# `softdep <module> pre: vfio-pci` in modprobe.d only orders module LOADING. It
+# does nothing at rescan time, and with i915 and snd_hda_intel already resident
+# the bus rescan hands them the card immediately - observed, not theorised.
+# Setting driver_override first does not help either: `remove` destroys the
+# device object and the override with it.
+#
+# So autoprobe is turned off for the duration: the devices reappear unbound,
+# driver_override is applied to the fresh objects, and only then are they
+# probed. There is no window in which a native driver can win the race.
+#
+# Called by PVE as: <script> <vmid> <phase>
+#
+# NOTE FOR EDITORS: everything below the settings block is inside a Jinja
+# verbatim region, because bash array length syntax opens a Jinja comment tag
+# and breaks templating. Keep new template variables in the block immediately
+# below rather than sprinkling them through the script. Do not write the raw
+# opening tag in a comment either — Jinja honours it inside comments too, which
+# silently swallows the settings block and ships a script full of unexpanded
+# placeholders.
+
+set -euo pipefail
+
+VMID="${1:-}"
+PHASE="${2:-}"
+
+PCI_IDS=({% for id in vfio_rescan_hook_pci_ids %}"{{ id }}"{{ " " if not loop.last }}{% endfor %})
+
+SETTLE={{ vfio_rescan_hook_settle_seconds }}
+FAIL_CLOSED={{ 'true' if vfio_rescan_hook_fail_closed else 'false' }}
+
+{% raw %}
+log() { echo "[vfio-rescan][vm ${VMID}] $*"; }
+die() {
+  log "ERROR: $*"
+  exit 1
+}
+
+# Every other phase is a no-op. Returning non-zero from pre-start aborts the
+# start, which is the whole point; returning non-zero from anything else would
+# just break the guest for unrelated reasons.
+[[ "${PHASE}" == "pre-start" ]] || exit 0
+
+[[ ${#PCI_IDS[@]} -gt 0 ]] || exit 0
+
+command -v lspci >/dev/null || die "lspci not found; cannot resolve PCI addresses"
+
+# Resolve vendor:device IDs to CURRENT addresses.
+#
+# Addresses are looked up every run rather than stored, because they are not
+# stable and not guessable: the same HBA is 85:00.0 on this host and 02:00.0
+# inside the guest, so a hard-coded address is a silent no-op waiting to happen.
+addrs=()
+for id in "${PCI_IDS[@]}"; do
+  found=$(lspci -Dn -d "${id}" | awk '{print $1}')
+  if [[ -z "${found}" ]]; then
+    log "WARNING: no device matches ${id} - skipping"
+    continue
+  fi
+  while read -r a; do
+    [[ -n "${a}" ]] && addrs+=("${a}")
+  done <<<"${found}"
+done
+
+[[ ${#addrs[@]} -gt 0 ]] || die "none of the configured PCI IDs resolved to a device"
+
+log "re-enumerating: ${addrs[*]}"
+
+AUTOPROBE=/sys/bus/pci/drivers_autoprobe
+restore_autoprobe() { echo 1 >"${AUTOPROBE}" 2>/dev/null || true; }
+# Leaving autoprobe off would stop EVERY later hotplugged device from binding a
+# driver, long after this script has exited and with nothing pointing back here.
+trap restore_autoprobe EXIT
+
+echo 0 >"${AUTOPROBE}"
+
+for addr in "${addrs[@]}"; do
+  dev="/sys/bus/pci/devices/${addr}"
+  [[ -e "${dev}" ]] || {
+    log "WARNING: ${addr} vanished before removal"
+    continue
+  }
+  if [[ -e "${dev}/driver" ]]; then
+    echo "${addr}" >"${dev}/driver/unbind" || log "WARNING: could not unbind ${addr}"
+  fi
+  echo 1 >"${dev}/remove"
+done
+
+echo 1 >/sys/bus/pci/rescan
+sleep "${SETTLE}"
+
+for addr in "${addrs[@]}"; do
+  dev="/sys/bus/pci/devices/${addr}"
+  [[ -e "${dev}" ]] || die "${addr} did not come back after rescan"
+  echo vfio-pci >"${dev}/driver_override"
+  echo "${addr}" >/sys/bus/pci/drivers_probe || true
+done
+
+restore_autoprobe
+trap - EXIT
+
+failed=0
+for addr in "${addrs[@]}"; do
+  drv=$(basename "$(readlink -f "/sys/bus/pci/devices/${addr}/driver" 2>/dev/null)" 2>/dev/null || echo none)
+  if [[ "${drv}" == "vfio-pci" ]]; then
+    log "${addr} -> vfio-pci"
+  else
+    log "ERROR: ${addr} bound to '${drv}', expected vfio-pci"
+    failed=1
+  fi
+done
+
+if [[ "${failed}" -ne 0 ]]; then
+  if [[ "${FAIL_CLOSED}" == "true" ]]; then
+    die "refusing to start: a passed-through device is not on vfio-pci. Starting now would hand the guest a device it cannot use, which surfaces later as a driver or hardware fault rather than as this."
+  fi
+  log "WARNING: continuing despite a wrong driver binding (fail-closed disabled)"
+fi
+
+log "all devices re-enumerated and bound to vfio-pci"
+{% endraw %}

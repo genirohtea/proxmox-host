@@ -1,0 +1,36 @@
+---
+# defaults file for vfio_rescan_hook
+
+# Where the hookscript lands. Must be inside a storage with the `snippets`
+# content type enabled, because that is the only place PVE will accept a
+# hookscript from (`local:snippets/<name>`). pve_storage enforces the content
+# type; this role only writes the file.
+vfio_rescan_hook_snippets_dir: /var/lib/vz/snippets
+vfio_rescan_hook_name: vfio-rescan
+
+# Vendor:device IDs to re-enumerate before the guest starts, as printed in
+# brackets by `lspci -nn` — NOT PCI addresses. Empty by default: this role is
+# opt-in per host, and a host with nothing listed writes no script at all.
+#
+# Deliberately a SEPARATE list from vfio_bind_extra_pci_ids rather than reusing
+# it. Not every passed-through device needs this treatment, and PCI-removing one
+# that does not is pure added risk: on `watt` both Optane drives survive a guest
+# restart untouched, while the SAS2008 and the Arc do not. Blast radius should
+# match the demonstrated problem.
+#
+# Example on `watt` (SAS2008 + Arc A310 + its audio function):
+#   vfio_rescan_hook_pci_ids: ["1000:0072", "8086:56a6", "8086:4f92"]
+vfio_rescan_hook_pci_ids: []
+
+# Fail the VM start if a device does not come back bound to vfio-pci.
+#
+# Fail CLOSED on purpose. The alternative is a guest that boots with a device
+# it cannot use and reports it hours later as a driver bug — `LMEM not
+# initialized by firmware`, or an HBA with no drives behind it. Both look like
+# hardware faults and neither points here. A refused start names the problem.
+vfio_rescan_hook_fail_closed: true
+
+# Seconds to wait after the bus rescan before re-probing. The devices must be
+# re-enumerated before their sysfs nodes exist; 2s is comfortably more than the
+# observed settle time and is paid once per guest start.
+vfio_rescan_hook_settle_seconds: 2

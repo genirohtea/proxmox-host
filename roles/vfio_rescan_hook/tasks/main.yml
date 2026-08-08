@@ -1,0 +1,86 @@
+---
+# tasks file for vfio_rescan_hook
+#
+# Installs the pre-start hookscript that re-enumerates passed-through PCI
+# devices. The script is host configuration, so it lives here; the VM that
+# REFERENCES it (`hook_script_file_id`) is declared in klaus-homelab's tofu.
+#
+# ORDERING BETWEEN THE TWO REPOS: this role must have run before a tofu apply
+# that sets hook_script_file_id, or the guest will refuse to start with
+# "hookscript ... does not exist". That only bites on a rebuild, which is
+# exactly when it is least likely to be remembered — see the README.
+
+- name: "Install the vfio re-enumeration hookscript"
+  become: true
+  when: vfio_rescan_hook_pci_ids | length > 0
+  block:
+    - name: "Reject a PCI address where a vendor:device ID is required"
+      ansible.builtin.assert:
+        that:
+          - item is match('^[0-9a-f]{4}:[0-9a-f]{4}$')
+        fail_msg: >-
+          '{{ item }}' is not a vendor:device PCI ID. This role expects IDs as
+          `lspci -nn` prints them in brackets (e.g. 1000:0072), not an address
+          such as 85:00.0. An address here would resolve to nothing and the
+          script would silently do no work — and addresses are not stable
+          anyway: the same HBA is 85:00.0 on the host and 02:00.0 in the guest.
+        quiet: true
+      loop: "{{ vfio_rescan_hook_pci_ids }}"
+
+    # Checked here rather than trusted, because a device listed for
+    # re-enumeration that does not exist means the inventory refers to hardware
+    # this host does not have — the script would warn and continue, and the
+    # first sign of trouble would be a guest with no drives.
+    - name: "Confirm every configured device is actually present on this host"
+      ansible.builtin.command: "lspci -Dn -d {{ item }}"
+      register: vfio_rescan_hook_present
+      changed_when: false
+      failed_when: vfio_rescan_hook_present.stdout | trim | length == 0
+      loop: "{{ vfio_rescan_hook_pci_ids }}"
+
+    - name: "Ensure the snippets directory exists"
+      ansible.builtin.file:
+        path: "{{ vfio_rescan_hook_snippets_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: "Render the hookscript"
+      ansible.builtin.template:
+        src: vfio-rescan.j2
+        dest: "{{ vfio_rescan_hook_snippets_dir }}/{{ vfio_rescan_hook_name }}"
+        owner: root
+        group: root
+        # Executable, and PVE runs it as root. 0755 rather than 0700 because
+        # `qm` reads it as root anyway and 0755 matches the shipped example.
+        mode: "0755"
+        validate: "bash -n %s"
+
+    # `bash -n` does NOT catch an unexpanded Jinja placeholder: `SETTLE={{ x }}`
+    # is a syntactically valid brace group, so the script passes the syntax
+    # check, deploys, and then dies at runtime with `command not found` — which
+    # PVE surfaces as a failed hookscript and a guest that will not start.
+    # Happened once, caused by a raw-region opening tag written inside a comment
+    # (Jinja honours it there too), which swallowed the whole settings block.
+    - name: "Fail if any Jinja placeholder survived into the rendered script"
+      # The pattern uses character classes rather than a literal brace pair,
+      # because Ansible parses the task's own arguments as Jinja first and an
+      # unbalanced literal tag here fails the play at load time.
+      ansible.builtin.command: >-
+        grep -n -E "[{][{]|[{][%]"
+        {{ vfio_rescan_hook_snippets_dir }}/{{ vfio_rescan_hook_name }}
+      register: vfio_rescan_hook_unexpanded
+      changed_when: false
+      failed_when: vfio_rescan_hook_unexpanded.rc == 0
+
+    - name: "Report how to attach it"
+      ansible.builtin.debug:
+        msg: >-
+          Hookscript installed at
+          {{ vfio_rescan_hook_snippets_dir }}/{{ vfio_rescan_hook_name }}.
+          Attach it with
+          `hook_script_file_id = "local:snippets/{{ vfio_rescan_hook_name }}"`
+          in the VM's tofu deployment (klaus-homelab), or
+          `qm set <vmid> --hookscript local:snippets/{{ vfio_rescan_hook_name }}`
+          for a one-off.
