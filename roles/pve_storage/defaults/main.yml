@@ -1,0 +1,12 @@
+---
+# defaults file for pve_storage
+
+# Content types that MUST be enabled on a given storage, keyed by storage id.
+# Declared per host in inventory/hosts.yaml.
+#
+# This is a *required* set, not the complete set: the role unions these with
+# whatever the storage already has and never removes a content type. Removing
+# one silently breaks whatever depended on it — dropping `import` from watt's
+# `local`, for example, would break the NAS deployment's cloud-image download
+# with an error that points nowhere near storage.cfg.
+pve_storage_required_content: {}

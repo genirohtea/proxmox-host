@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: genirohtea
+  description: >-
+    Ensure required Proxmox storage content types are enabled, so
+    hand-applied `pvesm set` changes survive a node rebuild.
+  license: BSD-3-Clause
+  min_ansible_version: "2.21"
+  galaxy_tags: []
+
+dependencies: []

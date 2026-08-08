@@ -1,0 +1,80 @@
+---
+# tasks file for pve_storage
+#
+# Makes `pvesm set <storage> --content ...` durable. Storage content types are
+# cluster state that nothing else in this repo manages, so a hand-applied change
+# is exactly the kind of thing that is silently missing after a node rebuild —
+# and the resulting failure surfaces far from its cause.
+#
+# The role is deliberately ADDITIVE. It unions the required types with whatever
+# the storage already carries and never removes one, because `pvesm set
+# --content` replaces the whole list: a single forgotten entry would drop a
+# content type that something depends on.
+
+- name: "Ensure required Proxmox storage content types"
+  become: true
+  when: pve_storage_required_content | length > 0
+  block:
+
+    - name: "Read the current storage configuration"
+      ansible.builtin.command: pvesh get /storage --output-format json
+      register: pve_storage_current_raw
+      changed_when: false
+
+    - name: "Parse the current storage configuration"
+      ansible.builtin.set_fact:
+        pve_storage_current: >-
+          {{ dict(pve_storage_current_raw.stdout | from_json
+                  | map(attribute='storage') | zip(
+                    pve_storage_current_raw.stdout | from_json
+                    | map(attribute='content'))) }}
+
+    - name: "Fail if a required storage does not exist on this node"
+      ansible.builtin.assert:
+        that:
+          - item.key in pve_storage_current
+        fail_msg: >-
+          Storage '{{ item.key }}' is not defined on {{ inventory_hostname }}.
+          pve_storage only adjusts content types on storages that already exist;
+          it deliberately does not create them, because creating a store implies
+          a path or pool decision that belongs with whoever provisioned it.
+        quiet: true
+      loop: "{{ pve_storage_required_content | dict2items }}"
+
+    # PVE returns content as a comma-separated string in arbitrary order, so the
+    # comparison is set-based. Sorting the union also keeps the resulting
+    # storage.cfg stable between runs rather than churning on ordering.
+    - name: "Compute the union of current and required content types"
+      ansible.builtin.set_fact:
+        pve_storage_plan: >-
+          {{ pve_storage_plan | default([]) + [{
+            'storage': item.key,
+            'current': (pve_storage_current[item.key].split(',') | map('trim') | reject('equalto', '') | list | sort),
+            'desired': ((pve_storage_current[item.key].split(',') | map('trim') | reject('equalto', '') | list)
+                        + item.value) | unique | sort
+          }] }}
+      loop: "{{ pve_storage_required_content | dict2items }}"
+
+    - name: "Show the content-type plan"
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.storage }}: {{ item.current | join(',') }}
+          {{ '(no change)' if item.current == item.desired
+            else '-> ' ~ (item.desired | join(',')) }}
+      loop: "{{ pve_storage_plan }}"
+      loop_control:
+        label: "{{ item.storage }}"
+
+    - name: "Apply the required content types"
+      ansible.builtin.command:
+        cmd: "pvesm set {{ item.storage }} --content {{ item.desired | join(',') }}"
+      when: item.current != item.desired
+      changed_when: true
+      loop: "{{ pve_storage_plan }}"
+      loop_control:
+        label: "{{ item.storage }}"
+
+  rescue:
+    - name: "Record that pve_storage failed"
+      ansible.builtin.set_fact:
+        task_failed: true
