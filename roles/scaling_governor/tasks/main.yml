@@ -82,14 +82,11 @@
     owner: root
     group: root
     mode: "0644"
-  register: scaling_governor_service_file
   become: true
+  notify: "Reload systemd for the scaling governor"
 
-- name: "Reload systemd after installing the governor service"
-  ansible.builtin.systemd:
-    daemon_reload: true
-  when: scaling_governor_service_file.changed
-  become: true
+- name: "Reload systemd before enabling the governor service"
+  ansible.builtin.meta: flush_handlers
 
 - name: "Enable the CPU scaling governor service"
   ansible.builtin.systemd:

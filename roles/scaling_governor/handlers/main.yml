@@ -14,3 +14,8 @@
     cmd: update-grub
   changed_when: true
   become: true
+
+- name: "Reload systemd for the scaling governor"
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true

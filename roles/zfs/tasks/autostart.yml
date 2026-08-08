@@ -8,6 +8,7 @@
     owner: root
     group: root
     mode: "0644"
+  notify: Reload systemd for ZFS pool checks
 
 - name: Create systemd timer file for the ZFS pool check
   ansible.builtin.template:
@@ -16,10 +17,7 @@
     owner: root
     group: root
     mode: "0644"
-
-- name: Reload systemd to recognize the new service and timer
-  ansible.builtin.systemd:
-    daemon_reload: true
+  notify: Reload systemd for ZFS pool checks
 
 - name: Check whether the legacy shell timer exists
   ansible.builtin.stat:
@@ -40,12 +38,10 @@
   loop:
     - zfs_pool_check.service
     - zfs_pool_check.timer
-  register: zfs_pool_check_legacy_units
+  notify: Reload systemd for ZFS pool checks
 
-- name: Reload systemd after removing legacy ZFS SMART units
-  ansible.builtin.systemd:
-    daemon_reload: true
-  when: zfs_pool_check_legacy_units.changed
+- name: Reload systemd before enabling the ZFS pool check timer
+  ansible.builtin.meta: flush_handlers
 
 - name: Enable the ZFS pool check timer to start on boot
   ansible.builtin.systemd:

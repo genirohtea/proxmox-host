@@ -1,2 +1,5 @@
 ---
 # handlers file for zfs
+- name: Reload systemd for ZFS pool checks
+  ansible.builtin.systemd:
+    daemon_reload: true
