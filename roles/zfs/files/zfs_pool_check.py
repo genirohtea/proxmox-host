@@ -11,27 +11,21 @@ it:
   * Starts a scrub on Saturdays of odd-numbered weeks and logs the status of
     the most recent scrub (at ``WARNING`` level when it did not finish with
     zero errors).
-  * Starts a periodic SMART self-test on every backing device on Sundays -- a
-    long test on even-numbered weeks and a short test on odd-numbered weeks.
 
 The schedule matches the original shell script exactly: the day of week comes
 from ``date +%u`` (Monday=1 .. Sunday=7) and the week number from ``date +%U``
 (Sunday as the first day of the week).
 
-On top of the shell script, it sends email notifications through Proxmox's
+It sends email notifications through Proxmox's
 ``proxmox-mail-forward`` helper (so they reach whatever the Proxmox
 notification system is configured to use):
 
-  * A weekly SMART report on Sundays, containing each drive's health and
-    self-test log. (The self-tests initiated on the same run take hours to
-    finish, so the report reflects the most recently *completed* tests.)
   * A scrub alert whenever the most recently completed scrub repaired data or
     reported errors. This is de-duplicated via a small state file so the daily
     run does not re-send the same alert until a new scrub completes.
 
 The script is intended to be run once per day from a systemd timer, but it is
-idempotent and safe to run more often (``zpool scrub`` on an already-scrubbing
-pool and duplicate SMART tests are harmless no-ops).
+idempotent and safe to run more often.
 
 Example:
   sudo ./zfs_pool_check.py --log-file /var/log/zfs_pool_check.log
@@ -74,7 +68,6 @@ _AUTOTRIM_EXACT = ("rpool",)
 
 # Day-of-week values as produced by ``date +%u`` / ``datetime.isoweekday()``.
 _SATURDAY = 6
-_SUNDAY = 7
 
 
 @dataclasses.dataclass(frozen=True)
@@ -116,8 +109,7 @@ def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(
         description="Check ZFS pool health and run scheduled maintenance "
-        "(autotrim/autoexpand, scrubs, and SMART self-tests), emailing a weekly "
-        "SMART report and scrub-repair alerts.",
+        "(autotrim/autoexpand and scrubs), emailing scrub-repair alerts.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=VERSION)
@@ -200,7 +192,6 @@ class PoolChecker:
 
         # Notifications accumulated during the run and sent at the end.
         self._scrub_alerts: List[str] = []
-        self._smart_reports: List[str] = []
 
     # ---------------------------------------------------------------------------
     # Low-level command helpers.
@@ -421,40 +412,6 @@ class PoolChecker:
         except ValueError:
             return None
 
-    def _pool_devices(self, pool: str) -> List[str]:
-        """Returns the backing block devices of a pool (``zpool status -LP``)."""
-        status = self._query(["zpool", "status", "-LP", pool])
-        devices = []
-        for line in status.splitlines():
-            fields = line.split()
-            if fields and fields[0].startswith("/dev/"):
-                devices.append(fields[0])
-        return devices
-
-    def _maybe_smart_test(self, pool: str) -> None:
-        """Starts a SMART self-test on Sundays and collects each drive's report.
-
-        Long tests run on even weeks and short tests on odd weeks. The report
-        gathered here reflects the most recently *completed* self-test (the test
-        started on this run takes hours); it is emailed at the end of the run.
-        """
-        if self.config.day_of_week != _SUNDAY:
-            return
-
-        test_type = "short" if self.config.is_odd_week else "long"
-        for device in self._pool_devices(pool):
-            self._mutate(
-                f"Starting SMART {test_type} test for {device}",
-                ["smartctl", "-t", test_type, device],
-            )
-            self._smart_reports.append(self._smart_report(pool, device))
-
-    def _smart_report(self, pool: str, device: str) -> str:
-        """Returns a health + self-test-log summary for a device."""
-        health = self._query(["smartctl", "-H", device])
-        selftest = self._query(["smartctl", "-l", "selftest", device])
-        return f"===== {pool} :: {device} =====\n{health}\n\n{selftest}\n"
-
     def _process_pool(self, pool: str) -> None:
         """Runs every maintenance step for a single pool."""
         _LOGGER.info("Checking pool: %s", pool)
@@ -463,13 +420,12 @@ class PoolChecker:
         self._log_health(pool)
         self._maybe_scrub(pool)
         self._log_scrub_status(pool)
-        self._maybe_smart_test(pool)
 
     # ---------------------------------------------------------------------------
     # Notifications.
     # ---------------------------------------------------------------------------
     def _send_notifications(self) -> None:
-        """Emails the scrub alert and the weekly Sunday SMART report, if any."""
+        """Emails a scrub alert when repaired data or errors are detected."""
         if self._scrub_alerts:
             body = (
                 f"A ZFS scrub repaired data or reported errors on {self._hostname}:"
@@ -478,18 +434,6 @@ class PoolChecker:
             self._send_email(
                 f"[ZFS] scrub repaired data/errors on {self._hostname}",
                 body,
-            )
-
-        if self.config.day_of_week == _SUNDAY and self._smart_reports:
-            test_type = "short" if self.config.is_odd_week else "long"
-            header = (
-                f"Weekly SMART report for {self._hostname}.\n"
-                f"A {test_type} self-test was initiated this run; the results below "
-                "are from the most recently completed self-tests.\n\n"
-            )
-            self._send_email(
-                f"[ZFS] weekly SMART report for {self._hostname}",
-                header + "\n".join(self._smart_reports),
             )
 
     def run(self) -> None:

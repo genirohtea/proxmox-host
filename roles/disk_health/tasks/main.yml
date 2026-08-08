@@ -1,0 +1,53 @@
+---
+- name: "Install disk health dependencies"
+  ansible.builtin.package:
+    name:
+      - smartmontools
+      - nvme-cli
+    state: present
+  become: true
+
+- name: "Create the disk health script directory"
+  ansible.builtin.file:
+    path: /etc/disk_health/scripts
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: "Install the disk health reporter"
+  ansible.builtin.copy:
+    src: disk_health.py
+    dest: /etc/disk_health/scripts/disk_health.py
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: "Install the disk health systemd service"
+  ansible.builtin.template:
+    src: disk_health.service.j2
+    dest: /etc/systemd/system/disk_health.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: "Install the disk health systemd timer"
+  ansible.builtin.template:
+    src: disk_health.timer.j2
+    dest: /etc/systemd/system/disk_health.timer
+    owner: root
+    group: root
+    mode: "0644"
+  register: disk_health_timer_unit
+  become: true
+
+- name: "Enable and start the disk health timer"
+  ansible.builtin.systemd:
+    name: disk_health.timer
+    enabled: true
+    state: "{{ 'restarted' if disk_health_timer_unit.changed else 'started' }}"
+    daemon_reload: true
+  become: true

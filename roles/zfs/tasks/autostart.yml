@@ -1,9 +1,7 @@
 ---
-# The ZFS check has been ported from zfs_pool_check.sh to zfs_pool_check.py.
-# The Python version is now the scheduled job; the legacy shell timer is
-# retired below (the shell script itself is kept on disk for reference).
+# The Python pool check supersedes the old shell implementation.
 
-- name: Create systemd service file for ZFS SMART check (Python)
+- name: Create systemd service file for the ZFS pool check
   ansible.builtin.template:
     src: templates/zfs_pool_check_py.service.j2
     dest: /etc/systemd/system/zfs_pool_check_py.service
@@ -11,7 +9,7 @@
     group: root
     mode: "0644"
 
-- name: Create systemd timer file for ZFS SMART check (Python)
+- name: Create systemd timer file for the ZFS pool check
   ansible.builtin.template:
     src: templates/zfs_pool_check_py.timer.j2
     dest: /etc/systemd/system/zfs_pool_check_py.timer
@@ -35,12 +33,26 @@
     enabled: false
   when: zfs_pool_check_legacy_timer.stat.exists
 
-- name: Enable ZFS SMART check (Python) timer to start on boot
+- name: Remove the legacy shell ZFS SMART check unit files
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}"
+    state: absent
+  loop:
+    - zfs_pool_check.service
+    - zfs_pool_check.timer
+  register: zfs_pool_check_legacy_units
+
+- name: Reload systemd after removing legacy ZFS SMART units
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: zfs_pool_check_legacy_units.changed
+
+- name: Enable the ZFS pool check timer to start on boot
   ansible.builtin.systemd:
     name: zfs_pool_check_py.timer
     enabled: true
 
-- name: Start ZFS SMART check (Python) timer
+- name: Start the ZFS pool check timer
   ansible.builtin.systemd:
     name: zfs_pool_check_py.timer
     state: started

@@ -1,0 +1,7 @@
+---
+# Run the report daily, after the ZFS pool check's default 03:00 schedule.
+disk_health_on_calendar: "*-*-* 04:00:00"
+disk_health_email_recipient: root
+disk_health_enable_email: true
+disk_health_enable_self_tests: true
+disk_health_log_file: /var/log/disk_health.log

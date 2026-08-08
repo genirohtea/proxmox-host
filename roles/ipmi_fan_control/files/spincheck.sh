@@ -165,24 +165,6 @@ printf "\n%s\n%s\n%s\n" "NOTE ABOUT DUTY CYCLE (Fan%0 and Fan%1):" \
   "Some boards apparently report incorrect duty cycle, and can" \
   "report duty cycle for zone 1 when that zone does not exist."
 
-# Before starting, go through the drives to report if
-# smartctl return value indicates a problem (>2).
-# Use -a so that all return values are available.
-while read -r LINE; do
-  get_disk_name
-  smartctl -a -n standby "$DEVID" >/var/tempfile
-  if [ $? -gt 2 ]; then
-    printf "\n"
-    printf "*******************************************************\n"
-    printf "* WARNING - Drive %-4s has a record of past errors,   *\n" "$DEVID"
-    printf "* is currently failing, or is not communicating well. *\n"
-    printf "* Use smartctl to examine the condition of this drive *\n"
-    printf "* and conduct tests. Status symbol for the drive may  *\n"
-    printf "* be incorrect (but probably not).                    *\n"
-    printf "*******************************************************\n"
-  fi
-done <<<"$DEVLIST"
-
 printf "\n%s %36s %s \n" "Key to drive status symbols:  * spinning;  _ standby;  ? unknown" "Version" $VERSION
 print_header
 

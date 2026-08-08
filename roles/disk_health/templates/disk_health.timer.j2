@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the physical disk health report periodically
+
+[Timer]
+OnCalendar={{ disk_health_on_calendar }}
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target

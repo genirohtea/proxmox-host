@@ -11,28 +11,16 @@
 # Example pool trim
 #  zpool set autotrim=on vm-nvme-pool
 
-# tasks file for configuring ZFS SMART check
-- name: "Setup ZFS + Smart utilities"
+# tasks file for configuring ZFS pool checks
+- name: "Setup ZFS pool monitoring"
   block:
-    - name: "Install required dependencies for zfs/smart"
-      package:
-        name: "{{ item }}"
+    - name: "Install required dependencies for ZFS pool checks"
+      ansible.builtin.package:
+        name: zfsutils-linux
         state: present
       become: true
-      with_items:
-        - smartmontools # Needed to check the smart status of the hdds
-        - lshw # Needed to get the device id of the hdds
 
-    - name: "Install required dependencies for ZFS SMART check"
-      package:
-        name: "{{ item }}"
-        state: present
-      become: true
-      with_items:
-        - smartmontools
-        - zfsutils-linux
-
-    - name: "Create script directory for ZFS SMART check"
+    - name: "Create script directory for ZFS pool checks"
       ansible.builtin.file:
         path: "/etc/zfs_smart_check/scripts"
         state: directory
@@ -41,7 +29,7 @@
         mode: 0755
       register: zfs_pool_script_dir
 
-    - name: "Copy ZFS SMART check script to the host"
+    - name: "Copy ZFS pool check script to the host"
       ansible.builtin.copy:
         src: "{{ item }}"
         dest: "{{ zfs_pool_script_dir.path }}/"
@@ -51,9 +39,15 @@
       with_fileglob:
         - "files/*"
 
-    - name: "Configure ZFS SMART check to auto start"
+    - name: "Remove the retired ZFS SMART shell script"
+      ansible.builtin.file:
+        path: /etc/zfs_smart_check/scripts/zfs_pool_check.sh
+        state: absent
+      become: true
+
+    - name: "Configure the ZFS pool check timer"
       ansible.builtin.import_tasks: autostart.yml
   rescue:
-    - name: "IPMI install failed"
+    - name: "ZFS pool check installation failed"
       ansible.builtin.set_fact:
         task_failed: true

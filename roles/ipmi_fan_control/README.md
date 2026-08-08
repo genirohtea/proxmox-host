@@ -2,6 +2,8 @@
 
 A role to control fan speed on servers using IPMI.
 
+Disk access in this role is limited to temperatures, standby state, and the thermal inputs needed for fan control. SMART health, lifetime, wear, and error indicators are owned by the `disk_health` role.
+
 ## Requirements
 
 - IPMI interface on the server

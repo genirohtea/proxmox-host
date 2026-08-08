@@ -403,18 +403,6 @@ class FanController:
                 result.stderr.decode(errors="replace").strip(),
             )
 
-    def _notify_smart_errors(self, failures: List[str]) -> None:
-        """Emails about failing drives; sent every cycle an error is detected.
-
-        Args:
-          failures: One human-readable line per failing drive (empty = no email).
-        """
-        if not failures:
-            return
-        lines = "\n".join(failures)
-        body = f"smartctl reported errors on {self._hostname}:\n\n{lines}\n"
-        self._send_email(f"[spinpid2] SMART errors on {self._hostname}", body)
-
     def _maybe_temp_alert(self, over_threshold: List[str]) -> None:
         """Emails when a drive or the CPU is over the threshold (once per day).
 
@@ -549,7 +537,6 @@ class FanController:
         tsum = 0
         spinning = 0
         cells = []
-        smart_failures: List[str] = []
         hot_drives: List[str] = []
 
         for device in self.devlist:
@@ -559,13 +546,6 @@ class FanController:
                 text=True,
                 check=False,
             )
-            # Bits 3-7 of smartctl's exit status flag an actually failing drive (see
-            # _warn_on_drive_errors); email each cycle they are seen.
-            if result.returncode & 0xF8:
-                smart_failures.append(
-                    f"{device}: smartctl exit status {result.returncode}",
-                )
-
             bit0 = result.returncode & 1
             bit1 = result.returncode & 2
             if bit0 == 0:
@@ -588,7 +568,6 @@ class FanController:
             cell = "" if temp is None else temp
             cells.append(f"{status}{cell:<2}  ")
 
-        self._notify_smart_errors(smart_failures)
         self._maybe_temp_alert(hot_drives)
 
         self.duty_periph_last = self.duty_periph
@@ -797,35 +776,6 @@ class FanController:
                 "Getting CPU temperature via ipmitool (sysctl not available) ",
             )
 
-    def _warn_on_drive_errors(self) -> None:
-        """Warns for any drive whose smartctl return value indicates a problem."""
-        for device in self.devlist:
-            returncode = subprocess.run(
-                ["smartctl", "-a", "-n", "standby", device],
-                capture_output=True,
-                text=True,
-                check=False,
-            ).returncode
-            # smartctl's exit status is a bitmask. Bits 0-1 (command-line parse error
-            # / device not opened) are handled by drives_check_adjust(). Bit 2 only
-            # means "a command to the disk failed", which is noisy for NVMe drives
-            # that reject an unsupported log page - e.g. the WD SN850X returns
-            # "Read Self-test Log failed: Invalid Field in Command" and sets bit 2 -
-            # so ignore it here. Warn only on the bits that flag an actually failing
-            # drive: bit 3 (DISK FAILING), bit 4 (prefail <= threshold), bit 5 (past
-            # threshold), bit 6 (error log has errors), bit 7 (self-test log errors).
-            if returncode & 0xF8:
-                _LOGGER.info(
-                    "\n"
-                    "*******************************************************\n"
-                    f"* WARNING - Drive {device:<4} has a record of past errors,   *\n"
-                    "* is currently failing, or is not communicating well. *\n"
-                    "* Use smartctl to examine the condition of this drive *\n"
-                    "* and conduct tests. Status symbol for the drive may  *\n"
-                    "* be incorrect (but probably not).                    *\n"
-                    "*******************************************************",
-                )
-
     def setup(self) -> None:
         """Performs one-time initialization: settings, devices, initial duty."""
         duty_source = (
@@ -878,8 +828,6 @@ class FanController:
             self._ipmi("raw", *_RAW_FAN_DUTY, _RAW_SET, str(self.zone_cpu), "50")
             self.duty_cpu = 50
             time.sleep(1)
-
-        self._warn_on_drive_errors()
 
         key = "Key to drive status symbols:  * spinning;  _ standby;  ? unknown"
         _LOGGER.info(f"\n{key} {'Version':>36} {VERSION} ")

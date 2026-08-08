@@ -47,7 +47,7 @@
       become: true
       with_items:
         - ipmitool
-        - smartmontools # Needed to check the smart status of the hdds
+        - smartmontools # Needed for drive standby state and temperature
         - lshw # Needed to get the device id of the hdds
         - python3-yaml # Needed by spinpid2.py to read its YAML settings
         - python3-jsonschema # Needed by spinpid2.py to validate its settings

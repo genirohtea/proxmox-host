@@ -1,0 +1,6 @@
+[Unit]
+Description=Physical disk SMART and NVMe health report
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /etc/disk_health/scripts/disk_health.py{% if not disk_health_enable_email %} --no-email{% endif %}{% if not disk_health_enable_self_tests %} --no-self-tests{% endif %} --recipient {{ disk_health_email_recipient | quote }} --log-file {{ disk_health_log_file | quote }}

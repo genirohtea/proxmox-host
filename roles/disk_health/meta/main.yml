@@ -1,0 +1,18 @@
+---
+galaxy_info:
+  author: genirohtea
+  description: Periodically reports SMART and NVMe health for physical disks
+  license: BSD-3-Clause
+  min_ansible_version: "2.21"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+  galaxy_tags:
+    - proxmox
+    - storage
+    - smart
+    - nvme
+
+dependencies: []

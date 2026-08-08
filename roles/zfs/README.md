@@ -1,6 +1,9 @@
 # ZFS
 
-A role to setup ZFS monitoring on the proxmox host.
+A role that monitors ZFS pool health, capacity, and scrub results on the Proxmox host. It also enables autoexpand, enables autotrim for pools identified as flash-backed, schedules scrubs, and emails alerts when
+a completed scrub repairs data or reports errors.
+
+Physical-disk SMART and NVMe monitoring is provided by the `disk_health` role.
 
 ## Requirements
 
