@@ -13,6 +13,9 @@ collections:
   - name: ansible.utils
   - name: community.general
   - name: ansible.posix
+    # 1.5.4 uses the callback API removed in ansible-core 2.23. Version 2.2.0
+    # implements v2_playbook_on_stats for profile_tasks and profile_roles.
+    version: "2.2.0"
 roles:
   - name: google_drive_mount
     src: https://github.com/genirohtea/google-drive-mount
