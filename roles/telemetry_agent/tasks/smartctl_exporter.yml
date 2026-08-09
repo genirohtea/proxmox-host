@@ -1,0 +1,77 @@
+---
+- name: "Gather the host architecture for the SMART exporter"
+  ansible.builtin.setup:
+    gather_subset:
+      - "!all"
+      - "!min"
+      - architecture
+
+- name: "Validate the SMART exporter architecture"
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.architecture in telemetry_agent_smartctl_exporter_architectures
+      - ansible_facts.architecture in telemetry_agent_smartctl_exporter_checksums
+    fail_msg: >-
+      smartctl_exporter {{ telemetry_agent_smartctl_exporter_version }} is not
+      configured for architecture {{ ansible_facts.architecture }}
+
+- name: "Install smartmontools"
+  ansible.builtin.package:
+    name: smartmontools
+    state: present
+  become: true
+
+- name: "Remove deprecated handcrafted SMART metrics"
+  ansible.builtin.file:
+    path: "{{ telemetry_agent_textfile_dir }}/proxmox_disk_health.prom"
+    state: absent
+  become: true
+
+- name: "Download the pinned SMART exporter release"
+  ansible.builtin.get_url:
+    url: "{{ telemetry_agent_smartctl_exporter_download_url }}"
+    dest: "/tmp/smartctl_exporter-{{ telemetry_agent_smartctl_exporter_version }}.tar.gz"
+    checksum: "sha256:{{ telemetry_agent_smartctl_exporter_checksums[ansible_facts.architecture] }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: "Extract the pinned SMART exporter release"
+  ansible.builtin.unarchive:
+    src: "/tmp/smartctl_exporter-{{ telemetry_agent_smartctl_exporter_version }}.tar.gz"
+    dest: /tmp
+    remote_src: true
+    creates: >-
+      /tmp/smartctl_exporter-{{ telemetry_agent_smartctl_exporter_version }}.linux-{{ telemetry_agent_smartctl_exporter_architectures[ansible_facts.architecture] }}/smartctl_exporter
+  become: true
+
+- name: "Install the SMART exporter binary"
+  ansible.builtin.copy:
+    src: >-
+      /tmp/smartctl_exporter-{{ telemetry_agent_smartctl_exporter_version }}.linux-{{ telemetry_agent_smartctl_exporter_architectures[ansible_facts.architecture] }}/smartctl_exporter
+    dest: /usr/local/bin/smartctl_exporter
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  notify: Restart the SMART exporter
+
+- name: "Install the SMART exporter systemd unit"
+  ansible.builtin.template:
+    src: smartctl_exporter.service.j2
+    dest: /etc/systemd/system/smartctl_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart the SMART exporter
+
+- name: "Enable and start the SMART exporter"
+  ansible.builtin.systemd:
+    name: smartctl_exporter.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true

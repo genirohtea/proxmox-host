@@ -11,7 +11,7 @@ properties:
   output:
     type: object
     additionalProperties: false
-    required: [ipmitool, log_file, console, cpu_log_enable, cpu_log]
+    required: [ipmitool, log_file, console, cpu_log_enable, cpu_log, prometheus_file]
     properties:
       ipmitool:
         type: [string, "null"]
@@ -23,6 +23,8 @@ properties:
       cpu_log_enable:
         type: boolean
       cpu_log:
+        type: string
+      prometheus_file:
         type: string
 
   fan:

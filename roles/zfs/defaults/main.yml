@@ -1,2 +1,4 @@
 ---
 # defaults file for zfs
+zfs_health_prometheus_file: /var/lib/node_exporter/textfile_collector/proxmox_zfs_vdev_health.prom
+zfs_health_metrics_interval: 5m

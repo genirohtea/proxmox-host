@@ -18,3 +18,10 @@
     daemon_reload: true
   become: true
   when: telemetry_agent_pve_token_value is defined
+
+- name: Restart the SMART exporter
+  ansible.builtin.systemd:
+    name: smartctl_exporter.service
+    state: restarted
+    daemon_reload: true
+  become: true

@@ -19,6 +19,24 @@
     mode: "0644"
   notify: Reload systemd for ZFS pool checks
 
+- name: Create systemd service file for ZFS health metrics
+  ansible.builtin.template:
+    src: templates/zfs_health_metrics.service.j2
+    dest: /etc/systemd/system/zfs_health_metrics.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for ZFS pool checks
+
+- name: Create systemd timer file for ZFS health metrics
+  ansible.builtin.template:
+    src: templates/zfs_health_metrics.timer.j2
+    dest: /etc/systemd/system/zfs_health_metrics.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for ZFS pool checks
+
 - name: Check whether the legacy shell timer exists
   ansible.builtin.stat:
     path: /etc/systemd/system/zfs_pool_check.timer
@@ -53,3 +71,15 @@
     name: zfs_pool_check_py.timer
     state: started
   register: zfs_pool_check_timer_status
+
+- name: Enable and start the ZFS health metrics timer
+  ansible.builtin.systemd:
+    name: zfs_health_metrics.timer
+    enabled: true
+    state: started
+
+- name: Seed ZFS health metrics
+  ansible.builtin.systemd:
+    name: zfs_health_metrics.service
+    state: started
+  changed_when: false

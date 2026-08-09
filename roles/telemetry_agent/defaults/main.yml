@@ -10,6 +10,7 @@ telemetry_agent_enabled: false
 # not the upstream tag (`1.18.1-1`, not `v1.18.1`).
 telemetry_agent_alloy_apt_version: "1.18.1-1"
 telemetry_agent_pve_exporter_version: "3.9.0"
+telemetry_agent_smartctl_exporter_version: "0.14.0"
 
 # ---------------------------------------------------------------------------
 # Series identity
@@ -76,6 +77,21 @@ telemetry_agent_listen_address: "127.0.0.1:12345"
 # (zfs_pool_check.py, disk_health.py, spinpid2.py): anything dropped here as a
 # .prom file becomes a Prometheus series with no additional exporter.
 telemetry_agent_textfile_dir: "/var/lib/node_exporter/textfile_collector"
+
+# SMART metrics use the upstream prometheus-community exporter. It runs as
+# root because smartctl requires raw disk access, but is reachable only by the
+# local Alloy process. Automatic discovery handles future physical disks;
+# virtual block devices are excluded so zvols do not become false failures.
+telemetry_agent_smartctl_exporter_listen: "127.0.0.1:9633"
+telemetry_agent_smartctl_exporter_device_exclude: "^(/dev/)?(zd.*|loop.*|zram.*|dm-.*)$"
+telemetry_agent_smartctl_exporter_architectures:
+  x86_64: amd64
+  aarch64: arm64
+telemetry_agent_smartctl_exporter_checksums:
+  x86_64: "875983cd27affc5a682401930e5a8eea3f06c325fe6d6a7228c5547d882685b3" # pragma: allowlist secret
+  aarch64: "27353b3adca7f54dd486417412041a17260709c724ea63f5138df2612ecf4299" # pragma: allowlist secret
+telemetry_agent_smartctl_exporter_download_url: >-
+  https://github.com/prometheus-community/smartctl_exporter/releases/download/v{{ telemetry_agent_smartctl_exporter_version }}/smartctl_exporter-{{ telemetry_agent_smartctl_exporter_version }}.linux-{{ telemetry_agent_smartctl_exporter_architectures[ansible_facts.architecture] }}.tar.gz
 
 # ---------------------------------------------------------------------------
 # PVE exporter

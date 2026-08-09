@@ -1,0 +1,7 @@
+[Unit]
+Description=Publish ZFS vdev health for Prometheus
+After=zfs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /etc/zfs_smart_check/scripts/zfs_pool_check.py --metrics-only --no-console --log-file /var/log/zfs_pool_check.log --prometheus-file {{ zfs_health_prometheus_file }}

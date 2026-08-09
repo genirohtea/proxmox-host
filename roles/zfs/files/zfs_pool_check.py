@@ -46,7 +46,7 @@ import subprocess
 import sys
 from typing import Dict, List, Optional, Sequence, Tuple
 
-VERSION = "2024-py"
+VERSION = "2024-py.1"
 
 _LOGGER = logging.getLogger("zfs_pool_check")
 
@@ -54,6 +54,9 @@ _DEFAULT_LOG_FILE = "/var/log/zfs_pool_check.log"
 
 # State file used to de-duplicate scrub-repair alerts across daily runs.
 _DEFAULT_STATE_FILE = "/var/lib/zfs_pool_check/state.json"
+_DEFAULT_PROMETHEUS_FILE = (
+    "/var/lib/node_exporter/textfile_collector/proxmox_zfs_vdev_health.prom"
+)
 
 # Proxmox's mail forwarder moved from /usr/bin to /usr/libexec in PVE 9.
 _MAIL_FORWARD_CANDIDATES = (
@@ -68,6 +71,29 @@ _AUTOTRIM_EXACT = ("rpool",)
 
 # Day-of-week values as produced by ``date +%u`` / ``datetime.isoweekday()``.
 _SATURDAY = 6
+_VDEV_STATES = {
+    "ONLINE",
+    "DEGRADED",
+    "FAULTED",
+    "OFFLINE",
+    "REMOVED",
+    "UNAVAIL",
+    "AVAIL",
+    "INUSE",
+    "SUSPENDED",
+}
+_HEALTHY_VDEV_STATES = {"ONLINE", "AVAIL", "INUSE"}
+_VDEV_CLASSES = {"logs", "cache", "spares", "special", "dedup"}
+
+
+@dataclasses.dataclass(frozen=True)
+class VdevHealth:
+    """Current health state for one ZFS topology node."""
+
+    pool: str
+    vdev: str
+    vdev_class: str
+    state: str
 
 
 @dataclasses.dataclass(frozen=True)
@@ -81,6 +107,8 @@ class Config:
     email_enabled: bool
     mail_forward_bin: Optional[str]
     state_file: str
+    prometheus_file: str
+    metrics_only: bool
     now: datetime.datetime
 
     @property
@@ -155,7 +183,106 @@ def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=_DEFAULT_STATE_FILE,
         help="Path used to de-duplicate scrub-repair alerts across runs.",
     )
+    parser.add_argument(
+        "--prometheus-file",
+        default=_DEFAULT_PROMETHEUS_FILE,
+        help="Node exporter textfile output for ZFS vdev health.",
+    )
+    parser.add_argument(
+        "--metrics-only",
+        action="store_true",
+        help="Publish read-only vdev health metrics without running maintenance.",
+    )
     return parser.parse_args(argv)
+
+
+def parse_vdev_health(pool: str, status: str) -> List[VdevHealth]:
+    """Parse topology health from ``zpool status -p -P`` output.
+
+    The pool root is omitted because node exporter's ZFS collector already
+    publishes it as ``node_zfs_zpool_state``. Topology groups (mirror/raidz)
+    and leaf devices are retained so a degraded branch is visible even when
+    its parent pool can still serve I/O.
+    """
+    vdevs: List[VdevHealth] = []
+    in_config = False
+    root_seen = False
+    vdev_class = "data"
+    for raw_line in status.splitlines():
+        line = raw_line.strip()
+        if line == "config:":
+            in_config = True
+            continue
+        if not in_config:
+            continue
+        if line.startswith("errors:"):
+            break
+        if not line or line.startswith("NAME "):
+            continue
+        if line in _VDEV_CLASSES:
+            vdev_class = line
+            continue
+
+        fields = line.split()
+        if len(fields) < 2 or fields[1].upper() not in _VDEV_STATES:
+            continue
+        name, state = fields[0], fields[1].upper()
+        if not root_seen and name == pool:
+            root_seen = True
+            continue
+        if not root_seen:
+            continue
+        vdevs.append(VdevHealth(pool, name, vdev_class, state))
+    return vdevs
+
+
+def _prometheus_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
+
+
+def write_vdev_metrics(
+    path: str,
+    vdevs: Sequence[VdevHealth],
+    collected_at: datetime.datetime,
+) -> None:
+    """Atomically publish ZFS vdev health for node exporter's textfile input."""
+    lines = [
+        "# HELP proxmox_zfs_vdev_healthy Whether the ZFS vdev is in a healthy state.",
+        "# TYPE proxmox_zfs_vdev_healthy gauge",
+    ]
+    for vdev in vdevs:
+        labels = {
+            "pool": vdev.pool,
+            "vdev": vdev.vdev,
+            "class": vdev.vdev_class,
+            "state": vdev.state,
+        }
+        rendered_labels = ",".join(
+            f'{key}="{_prometheus_escape(value)}"' for key, value in labels.items()
+        )
+        healthy = int(vdev.state in _HEALTHY_VDEV_STATES)
+        lines.append(f"proxmox_zfs_vdev_healthy{{{rendered_labels}}} {healthy}")
+
+    lines.extend(
+        [
+            "# HELP proxmox_zfs_vdev_last_collection_timestamp_seconds Unix timestamp of the last ZFS vdev collection.",
+            "# TYPE proxmox_zfs_vdev_last_collection_timestamp_seconds gauge",
+            "proxmox_zfs_vdev_last_collection_timestamp_seconds "
+            f"{int(collected_at.timestamp())}",
+        ],
+    )
+    directory = os.path.dirname(path) or "."
+    os.makedirs(directory, mode=0o755, exist_ok=True)
+    temporary_path = f"{path}.{os.getpid()}.tmp"
+    try:
+        with open(temporary_path, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(lines) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+    finally:
+        if os.path.exists(temporary_path):
+            os.unlink(temporary_path)
 
 
 def _setup_logging(log_file: str, to_console: bool) -> None:
@@ -421,6 +548,25 @@ class PoolChecker:
         self._maybe_scrub(pool)
         self._log_scrub_status(pool)
 
+    def _publish_vdev_metrics(self, pools: Sequence[str]) -> None:
+        """Collect current topology state without invoking maintenance."""
+        vdevs: List[VdevHealth] = []
+        for pool in pools:
+            result = self._run(["zpool", "status", "-p", "-P", pool])
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"zpool status failed for {pool}: {result.stderr.strip()}",
+                )
+            vdevs.extend(parse_vdev_health(pool, result.stdout))
+        if self.config.dry_run:
+            _LOGGER.info(
+                "[dry-run] would publish %s ZFS vdev health metrics",
+                len(vdevs),
+            )
+            return
+        write_vdev_metrics(self.config.prometheus_file, vdevs, self.config.now)
+        _LOGGER.info("Published health for %s ZFS vdevs", len(vdevs))
+
     # ---------------------------------------------------------------------------
     # Notifications.
     # ---------------------------------------------------------------------------
@@ -439,7 +585,12 @@ class PoolChecker:
     def run(self) -> None:
         """Processes every configured pool and sends notifications."""
         _LOGGER.info("Starting ZFS pool check")
-        for pool in self._list_pools():
+        pools = self._list_pools()
+        if self.config.metrics_only:
+            self._publish_vdev_metrics(pools)
+            _LOGGER.info("Finished ZFS vdev metrics collection")
+            return
+        for pool in pools:
             self._process_pool(pool)
         self._send_notifications()
         self._save_state()
@@ -458,6 +609,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         email_enabled=args.email_enabled,
         mail_forward_bin=args.mail_forward_bin,
         state_file=args.state_file,
+        prometheus_file=args.prometheus_file,
+        metrics_only=args.metrics_only,
         now=datetime.datetime.now(),
     )
     PoolChecker(config).run()

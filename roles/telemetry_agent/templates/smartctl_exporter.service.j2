@@ -1,0 +1,19 @@
+[Unit]
+Description=Prometheus SMART exporter
+Documentation=https://github.com/prometheus-community/smartctl_exporter
+After=local-fs.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/local/bin/smartctl_exporter --web.listen-address={{ telemetry_agent_smartctl_exporter_listen }} --smartctl.path=/usr/sbin/smartctl --smartctl.device-exclude={{ telemetry_agent_smartctl_exporter_device_exclude }}
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

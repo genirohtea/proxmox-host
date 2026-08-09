@@ -1,7 +1,9 @@
 """Focused parser tests for the disk health reporter."""
 
 import importlib.util
+import json
 import pathlib
+import subprocess
 import unittest
 
 _SCRIPT = pathlib.Path(__file__).parents[1] / "files" / "disk_health.py"
@@ -90,6 +92,32 @@ Media and Data Integrity Errors:   2
             "# 1  Short offline Completed without error 00% 1234 -\n",
         )
         self.assertIn("Completed without error", latest)
+
+    def test_virtual_zvols_are_not_physical_disks(self) -> None:
+        devices = {
+            "blockdevices": [
+                {"name": "sda", "type": "disk", "model": "Physical", "size": 10},
+                {"name": "nvme0n1", "type": "disk", "model": "NVMe", "size": 20},
+                {"name": "zd0", "type": "disk", "model": None, "size": 1},
+                {"name": "zd112", "type": "disk", "model": None, "size": 2},
+            ],
+        }
+        original_run = getattr(disk_health, "_run")
+        setattr(
+            disk_health,
+            "_run",
+            lambda _command: subprocess.CompletedProcess(
+                [],
+                0,
+                stdout=json.dumps(devices),
+                stderr="",
+            ),
+        )
+        try:
+            disks = disk_health.list_physical_disks()
+        finally:
+            setattr(disk_health, "_run", original_run)
+        self.assertEqual([disk.path for disk in disks], ["/dev/nvme0n1", "/dev/sda"])
 
 
 if __name__ == "__main__":

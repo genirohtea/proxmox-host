@@ -4,6 +4,9 @@ A role to control fan speed on servers using IPMI.
 
 Disk access in this role is limited to temperatures, standby state, and the thermal inputs needed for fan control. SMART health, lifetime, wear, and error indicators are owned by the `disk_health` role.
 
+The controller atomically publishes each available IPMI fan's RPM and the CPU and peripheral zone duty ratios to `/var/lib/node_exporter/textfile_collector/proxmox_ipmi_fans.prom`. Alloy's embedded
+node_exporter forwards these as `proxmox_ipmi_fan_speed_rpm` and `proxmox_ipmi_fan_duty_ratio`.
+
 ## Requirements
 
 - IPMI interface on the server
