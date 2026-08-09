@@ -1,0 +1,93 @@
+---
+# Off by default, and it must stay off until the Toyota cluster can receive:
+# `enableRemoteWriteReceiver: true` on Prometheus plus the prometheus-push and
+# loki-push routes. Enabling by default would fail every playbook run against a
+# cluster that has none of that yet. Flip it per host in inventory/hosts.yaml.
+telemetry_agent_enabled: false
+
+# Pinned exactly (repo convention) -- upgrades are explicit git commits.
+# Alloy ships from apt.grafana.com; the version is the Debian package version,
+# not the upstream tag (`1.18.1-1`, not `v1.18.1`).
+telemetry_agent_alloy_apt_version: "1.18.1-1"
+telemetry_agent_pve_exporter_version: "3.9.0"
+
+# ---------------------------------------------------------------------------
+# Series identity
+#
+# Without host/site/env every series from this machine is indistinguishable
+# from a cluster-node series in the same Prometheus, and dashboards and alert
+# rules end up matching things they should not. The same three labels are used
+# by klaus-homelab/nas/stack/monitoring/config.alloy -- keep them consistent.
+# ---------------------------------------------------------------------------
+telemetry_agent_host_label: "{{ inventory_hostname.split('.') | first }}"
+telemetry_agent_site: "{{ site | default('unknown') }}"
+telemetry_agent_env: "prod"
+
+# ---------------------------------------------------------------------------
+# Push endpoints
+#
+# The cluster derives its hostnames as `<name>.${CLUSTER_ENV}.<internalDomain>`
+# (toyota-cluster/infrastructure/configs/external-secrets/cluster-domain.yaml),
+# so the same two parts reconstruct them here rather than hard-coding a domain
+# that lives in BWS. Override the URLs directly if the routes ever move.
+# ---------------------------------------------------------------------------
+telemetry_agent_cluster_env: "prod"
+# Base internal domain, without the environment prefix. Left empty so the BWS
+# lookup below supplies it; set it explicitly to skip BWS entirely.
+telemetry_agent_internal_domain: ""
+# API-key authentication is scoped to the two HTTPRoutes, so telemetry shares
+# the ordinary internal HTTPS listener on 443 without affecting browser routes.
+telemetry_agent_prometheus_push_url: "https://prometheus-push.{{ telemetry_agent_cluster_env }}.{{ telemetry_agent_internal_domain }}/api/v1/write"
+telemetry_agent_loki_push_url: "https://loki-push.{{ telemetry_agent_cluster_env }}.{{ telemetry_agent_internal_domain }}/loki/api/v1/push"
+
+# ---------------------------------------------------------------------------
+# Client identity (API key)
+#
+# OpenTofu creates one high-entropy key per pushing machine and publishes it to
+# BWS. Toyota's ExternalSecret consumes an aggregate verifier map; this host
+# receives only its own individual key. The ID is therefore per host and
+# belongs in inventory/hosts.yaml rather than in role defaults.
+#
+#   kvk-klaus-homelab-prod-klaus-toyota-internal-domain     -> internal_domain_id
+#   kvk-telemetry-prod-klaus-k8s-<hostname>-a-api-key        -> api_key_id
+# ---------------------------------------------------------------------------
+telemetry_agent_bws_internal_domain_id: ""
+telemetry_agent_bws_api_key_id: ""
+
+telemetry_agent_secret_dir: "/etc/alloy/credentials"
+telemetry_agent_api_key_path: "{{ telemetry_agent_secret_dir }}/telemetry-api-key"
+
+# The key stays 0600 root:root on disk and reaches Alloy through systemd's
+# LoadCredential, so it never appears in the environment or rendered config.
+telemetry_agent_credential_dir: "/run/credentials/alloy.service"
+
+# ---------------------------------------------------------------------------
+# Agent behaviour
+# ---------------------------------------------------------------------------
+telemetry_agent_scrape_interval: "30s"
+# How far back Alloy reads the journal on start. Covers a normal reboot without
+# replaying weeks of history into Loki after a long outage.
+telemetry_agent_journal_max_age: "12h"
+# Alloy's own HTTP server: loopback only. It serves /-/ready, which the role
+# uses to confirm the config actually loaded.
+telemetry_agent_listen_address: "127.0.0.1:12345"
+
+# The seam for roles that already compute health numbers for email
+# (zfs_pool_check.py, disk_health.py, spinpid2.py): anything dropped here as a
+# .prom file becomes a Prometheus series with no additional exporter.
+telemetry_agent_textfile_dir: "/var/lib/node_exporter/textfile_collector"
+
+# ---------------------------------------------------------------------------
+# PVE exporter
+#
+# node_exporter cannot see guests, storages, quorum or replication -- those are
+# PVE API objects. prometheus-pve-exporter holds a read-only API token and
+# listens on loopback, so the token never leaves the host and the endpoint is
+# not reachable from the LAN.
+# ---------------------------------------------------------------------------
+telemetry_agent_pve_exporter_listen: "127.0.0.1:9221"
+telemetry_agent_pve_exporter_venv: "/opt/prometheus-pve-exporter"
+telemetry_agent_pve_exporter_config: "/etc/prometheus-pve-exporter/pve.yml"
+telemetry_agent_pve_exporter_user: "pve-exporter"
+telemetry_agent_pve_api_user: "prometheus@pve"
+telemetry_agent_pve_token_name: "alloy"

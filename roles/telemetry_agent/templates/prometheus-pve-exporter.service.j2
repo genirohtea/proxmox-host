@@ -1,0 +1,31 @@
+# Managed by Ansible (roles/telemetry_agent) -- local edits are overwritten.
+[Unit]
+Description=Prometheus Proxmox VE exporter
+Documentation=https://github.com/prometheus-pve/prometheus-pve-exporter
+# pve-cluster owns pmxcfs; without it the API this exporter reads is not yet
+# answering and every scrape after boot fails until the first restart.
+After=network-online.target pve-cluster.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ telemetry_agent_pve_exporter_user }}
+Group={{ telemetry_agent_pve_exporter_user }}
+ExecStart={{ telemetry_agent_pve_exporter_venv }}/bin/pve_exporter \
+  --config.file={{ telemetry_agent_pve_exporter_config }} \
+  --web.listen-address={{ telemetry_agent_pve_exporter_listen }}
+Restart=on-failure
+RestartSec=5
+
+# The exporter reads one config file and talks to loopback. It needs no
+# filesystem writes, no home directories and no new privileges.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

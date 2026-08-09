@@ -1,0 +1,20 @@
+---
+- name: Refresh the Grafana apt cache
+  ansible.builtin.apt:
+    update_cache: true
+  become: true
+
+- name: Restart Alloy
+  ansible.builtin.systemd:
+    name: alloy.service
+    state: restarted
+    daemon_reload: true
+  become: true
+
+- name: Restart the PVE exporter
+  ansible.builtin.systemd:
+    name: prometheus-pve-exporter.service
+    state: restarted
+    daemon_reload: true
+  become: true
+  when: telemetry_agent_pve_token_value is defined

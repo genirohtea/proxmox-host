@@ -1,0 +1,23 @@
+---
+# tasks file for telemetry_agent
+#
+# One Alloy agent per host, pushing rather than being scraped. The cluster
+# therefore holds no list of Proxmox hosts and no per-host target config: a new
+# host is one commit in this repo. See klaus-homelab/nas/DESIGN.md section 4.4,
+# which argues the same trade for the NAS and shares these push endpoints.
+
+- name: "Ship host telemetry to the Toyota cluster"
+  block:
+    - name: "Resolve the push credentials"
+      ansible.builtin.import_tasks: secrets.yml
+
+    - name: "Install the Proxmox VE exporter"
+      ansible.builtin.import_tasks: pve_exporter.yml
+
+    - name: "Install the Alloy agent"
+      ansible.builtin.import_tasks: alloy.yml
+
+  rescue:
+    - name: "Telemetry agent installation failed"
+      ansible.builtin.set_fact:
+        task_failed: true # noqa var-naming[no-role-prefix] -- shared play-level failure flag

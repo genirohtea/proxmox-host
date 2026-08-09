@@ -1,0 +1,153 @@
+---
+# prometheus-pve-exporter is not packaged in Debian, so it goes in its own
+# venv. PVE 9 / trixie enforces PEP 668, which makes a plain `pip install`
+# fail against the system interpreter -- the venv is the fix, not a preference.
+
+- name: "Install the PVE exporter build dependencies"
+  ansible.builtin.package:
+    name:
+      - python3-venv
+    state: present
+  become: true
+
+- name: "Create the PVE exporter service user"
+  ansible.builtin.user:
+    name: "{{ telemetry_agent_pve_exporter_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: /nonexistent
+    create_home: false
+  become: true
+
+- name: "Install the PVE exporter into its venv"
+  ansible.builtin.pip:
+    name: "prometheus-pve-exporter=={{ telemetry_agent_pve_exporter_version }}"
+    state: present
+    virtualenv: "{{ telemetry_agent_pve_exporter_venv }}"
+    virtualenv_command: /usr/bin/python3 -m venv
+  become: true
+  notify: Restart the PVE exporter
+
+- name: "Create the PVE exporter configuration directory"
+  ansible.builtin.file:
+    path: "{{ telemetry_agent_pve_exporter_config | dirname }}"
+    state: directory
+    owner: root
+    group: "{{ telemetry_agent_pve_exporter_user }}"
+    mode: "0750"
+  become: true
+
+# The PVE side: a read-only user and an API token for it. Tagged
+# molecule-notest because pveum exists only on a real Proxmox host.
+- name: "Provision the read-only PVE API identity"
+  tags:
+    - molecule-notest
+  become: true
+  block:
+    - name: "Check whether the PVE metrics user already exists"
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        pveum user list --output-format json | grep -F '"{{ telemetry_agent_pve_api_user }}"'
+      register: telemetry_agent_pve_user_check
+      changed_when: false
+      failed_when: false
+      args:
+        executable: /bin/bash
+
+    - name: "Create the PVE metrics user"
+      ansible.builtin.command: >-
+        pveum user add {{ telemetry_agent_pve_api_user }}
+        --comment "Read-only metrics collection (ansible: telemetry_agent)"
+      when: telemetry_agent_pve_user_check.rc != 0
+      changed_when: true
+
+    # PVEAuditor is a built-in role and is read-only by construction. Assigned
+    # at / so the exporter sees every guest, storage and node; the token below
+    # is created with --privsep 0 so it inherits this and needs no ACL of its
+    # own.
+    - name: "Grant the PVE metrics user read-only access"
+      ansible.builtin.command: >-
+        pveum aclmod / -user {{ telemetry_agent_pve_api_user }} -role PVEAuditor
+      changed_when: false
+
+    - name: "Check for existing PVE exporter credentials"
+      ansible.builtin.stat:
+        path: "{{ telemetry_agent_pve_exporter_config }}"
+      register: telemetry_agent_pve_config_stat
+
+    # A token's secret is shown once, at creation, and is unrecoverable
+    # afterwards. So the credentials file -- not the PVE token list -- is the
+    # source of truth: if the file is gone the existing token is useless and is
+    # replaced rather than left behind as a live credential nobody holds.
+    - name: "Provision a new PVE API token"
+      when: not telemetry_agent_pve_config_stat.stat.exists
+      block:
+        - name: "Remove any orphaned PVE API token"
+          ansible.builtin.command: >-
+            pveum user token remove {{ telemetry_agent_pve_api_user }} {{ telemetry_agent_pve_token_name }}
+          register: telemetry_agent_pve_token_removed
+          changed_when: telemetry_agent_pve_token_removed.rc == 0
+          failed_when: false
+
+        - name: "Create the PVE API token"
+          ansible.builtin.command: >-
+            pveum user token add {{ telemetry_agent_pve_api_user }} {{ telemetry_agent_pve_token_name }}
+            --privsep 0
+            --comment "prometheus-pve-exporter (ansible: telemetry_agent)"
+            --output-format json
+          register: telemetry_agent_pve_token_created
+          changed_when: true
+          no_log: true
+
+        - name: "Record the new PVE API token"
+          ansible.builtin.set_fact:
+            telemetry_agent_pve_token_value: "{{ (telemetry_agent_pve_token_created.stdout | from_json).value }}"
+          no_log: true
+
+    - name: "Read back the existing PVE API token"
+      when: telemetry_agent_pve_config_stat.stat.exists
+      block:
+        - name: "Slurp the PVE exporter credentials"
+          ansible.builtin.slurp:
+            src: "{{ telemetry_agent_pve_exporter_config }}"
+          register: telemetry_agent_pve_config_content
+          no_log: true
+
+        # Re-templating with the value already on disk keeps every other field
+        # in the file (user, module name, verify_ssl) under Ansible's control
+        # instead of frozen at first install.
+        - name: "Reuse the existing PVE API token"
+          ansible.builtin.set_fact:
+            telemetry_agent_pve_token_value: "{{ (telemetry_agent_pve_config_content.content | b64decode | from_yaml).default.token_value }}"
+          no_log: true
+
+- name: "Write the PVE exporter credentials"
+  ansible.builtin.template:
+    src: pve.yml.j2
+    dest: "{{ telemetry_agent_pve_exporter_config }}"
+    owner: root
+    group: "{{ telemetry_agent_pve_exporter_user }}"
+    mode: "0640"
+  become: true
+  no_log: true
+  when: telemetry_agent_pve_token_value is defined
+  notify: Restart the PVE exporter
+
+- name: "Install the PVE exporter systemd unit"
+  ansible.builtin.template:
+    src: prometheus-pve-exporter.service.j2
+    dest: /etc/systemd/system/prometheus-pve-exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart the PVE exporter
+
+- name: "Enable and start the PVE exporter"
+  ansible.builtin.systemd:
+    name: prometheus-pve-exporter.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  when: telemetry_agent_pve_token_value is defined

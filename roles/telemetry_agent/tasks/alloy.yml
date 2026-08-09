@@ -1,0 +1,166 @@
+---
+- name: "Install the apt transport dependencies"
+  ansible.builtin.package:
+    name:
+      - apt-transport-https
+      - gpg
+    state: present
+  become: true
+
+- name: "Create the apt keyring directory"
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: "Install the Grafana apt signing key"
+  ansible.builtin.get_url:
+    url: https://apt.grafana.com/gpg-full.key
+    dest: /etc/apt/keyrings/grafana.asc
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+# deb822, matching what fix_package_repos leaves behind on trixie -- a .list
+# file here would reintroduce exactly the mixed-format duplication that role
+# exists to clean up.
+- name: "Add the Grafana apt repository"
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: deb
+    uris: https://apt.grafana.com
+    suites: stable
+    components: main
+    signed_by: /etc/apt/keyrings/grafana.asc
+    state: present
+  become: true
+  notify: Refresh the Grafana apt cache
+
+- name: "Refresh the Grafana apt cache before installing Alloy"
+  ansible.builtin.meta: flush_handlers
+
+- name: "Install Alloy"
+  ansible.builtin.apt:
+    name: "alloy={{ telemetry_agent_alloy_apt_version }}"
+    state: present
+    # The Grafana repo carries every past version, so a pinned install must not
+    # be silently upgraded by an unrelated `apt upgrade` later.
+    allow_downgrade: true
+  become: true
+
+- name: "Hold the Alloy package at the pinned version"
+  ansible.builtin.dpkg_selections:
+    name: alloy
+    selection: hold
+  become: true
+
+# The package creates the `alloy` user. Reading the journal needs group
+# membership, not root: systemd-journal covers the persistent journal and adm
+# covers /var/log. Neither grants anything else.
+- name: "Grant Alloy read access to the journal"
+  ansible.builtin.user:
+    name: alloy
+    groups:
+      - systemd-journal
+      - adm
+    append: true
+  become: true
+  notify: Restart Alloy
+
+- name: "Create the node exporter textfile directory"
+  ansible.builtin.file:
+    path: "{{ telemetry_agent_textfile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: "Write the Alloy environment file"
+  ansible.builtin.template:
+    src: alloy.env.j2
+    dest: /etc/default/alloy
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart Alloy
+
+- name: "Create the Alloy credential directory"
+  ansible.builtin.file:
+    path: "{{ telemetry_agent_secret_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  become: true
+
+# 0600 root:root, and it stays that way: systemd's LoadCredential projects a
+# private copy into the service credential directory for Alloy.
+- name: "Install the telemetry API key"
+  ansible.builtin.copy:
+    content: "{{ telemetry_agent_api_key }}"
+    dest: "{{ telemetry_agent_api_key_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  no_log: true
+  notify: Restart Alloy
+
+- name: "Create the Alloy service drop-in directory"
+  ansible.builtin.file:
+    path: /etc/systemd/system/alloy.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: "Load the telemetry API key into the Alloy service"
+  ansible.builtin.template:
+    src: alloy-credentials.conf.j2
+    dest: /etc/systemd/system/alloy.service.d/10-telemetry-credentials.conf
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart Alloy
+
+- name: "Write the Alloy configuration"
+  ansible.builtin.template:
+    src: config.alloy.j2
+    dest: /etc/alloy/config.alloy
+    owner: root
+    group: alloy
+    mode: "0640"
+    validate: "/usr/bin/alloy validate %s"
+  become: true
+  notify: Restart Alloy
+
+- name: "Enable and start Alloy"
+  ansible.builtin.systemd:
+    name: alloy.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+
+- name: "Flush handlers so readiness is checked against the new configuration"
+  ansible.builtin.meta: flush_handlers
+
+# A running unit is not a working pipeline: Alloy stays up with components in a
+# failed state. /-/ready is the difference between "installed" and "shipping".
+- name: "Wait for Alloy to report ready"
+  ansible.builtin.uri:
+    url: "http://{{ telemetry_agent_listen_address }}/-/ready"
+    status_code: 200
+  register: telemetry_agent_ready
+  retries: 12
+  delay: 5
+  until: telemetry_agent_ready is succeeded
+  changed_when: false

@@ -66,6 +66,12 @@
       tags: zfs
     - role: disk_health
       tags: disk_health
+    # After the roles whose scripts feed its textfile collector, so the
+    # directory's producers are installed before its reader is. Disabled until
+    # the cluster exposes the push endpoints -- see the role README.
+    - role: telemetry_agent
+      tags: telemetry_agent
+      when: telemetry_agent_enabled | default(false) | bool
     - role: google_drive_mount
       tags: google_drive_mount
       vars:

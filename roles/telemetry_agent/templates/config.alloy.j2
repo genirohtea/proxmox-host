@@ -1,0 +1,139 @@
+// Managed by Ansible (roles/telemetry_agent) -- local edits are overwritten.
+//
+// Alloy configuration syntax, not YAML: yamllint and the repo's other linters
+// never see this file, so a syntax error would ship silently and take the whole
+// telemetry pipeline down with it -- leaving no metrics to notice the outage
+// by. The role runs `alloy validate` on this file before installing it.
+
+// ---------------------------------------------------------------------------
+// Host metrics
+//
+// prometheus.exporter.unix IS node_exporter, embedded. Running the standalone
+// package alongside would mean a second thing to pin and a second listening
+// port to run the same code.
+// ---------------------------------------------------------------------------
+
+prometheus.exporter.unix "host" {
+  // ZFS gives ARC hit/miss and per-pool I/O. The textfile collector is the
+  // seam for the roles that already compute health numbers for email
+  // (zfs_pool_check.py, disk_health.py, spinpid2.py) -- anything they drop in
+  // the directory below becomes a series without another exporter.
+  enable_collectors = ["zfs"]
+
+  textfile {
+    directory = "{{ telemetry_agent_textfile_dir }}"
+  }
+
+  filesystem {
+    mount_points_exclude = "^/(dev|proc|sys|run|var/lib/lxcfs)($|/)"
+  }
+}
+
+prometheus.scrape "host" {
+  targets         = prometheus.exporter.unix.host.targets
+  forward_to      = [prometheus.remote_write.toyota.receiver]
+  scrape_interval = "{{ telemetry_agent_scrape_interval }}"
+}
+
+// ---------------------------------------------------------------------------
+// Proxmox VE metrics
+//
+// Guests, storages, quorum and replication are PVE API objects that
+// node_exporter cannot see. The exporter holds the read-only API token and
+// binds loopback, so neither the token nor the endpoint leaves the host.
+// ---------------------------------------------------------------------------
+
+prometheus.scrape "pve" {
+  targets = [
+    {"__address__" = "{{ telemetry_agent_pve_exporter_listen }}"},
+  ]
+
+  // The exporter takes its PVE target as a query parameter; `localhost` is
+  // this node. cluster=1 and node=1 add the quorum and per-node collectors.
+  metrics_path = "/pve"
+  params = {
+    "target"  = ["localhost"],
+    "cluster" = ["1"],
+    "node"    = ["1"],
+  }
+
+  forward_to      = [prometheus.remote_write.toyota.receiver]
+  scrape_interval = "{{ telemetry_agent_scrape_interval }}"
+}
+
+// ---------------------------------------------------------------------------
+// Metrics egress
+// ---------------------------------------------------------------------------
+
+prometheus.remote_write "toyota" {
+  // Without host/site/env every series from this machine is indistinguishable
+  // from a cluster-node series in the same Prometheus, and dashboards and
+  // alert rules end up matching things they should not.
+  external_labels = {
+    host = "{{ telemetry_agent_host_label }}",
+    site = "{{ telemetry_agent_site }}",
+    env  = "{{ telemetry_agent_env }}",
+  }
+
+  endpoint {
+    url = "{{ telemetry_agent_prometheus_push_url }}"
+
+    // Machine-to-machine, so NOT Authentik forward-auth -- an SSO redirect
+    // would break the agent. Envoy validates the bearer value against a
+    // per-client API-key map and sanitizes the Authorization header before the
+    // request reaches Prometheus.
+    bearer_token_file = "{{ telemetry_agent_credential_dir }}/telemetry-api-key"
+  }
+
+  // Buffers to disk and backfills, so a cluster-side outage (a Prometheus
+  // rollout, a Longhorn incident) costs no samples. It does NOT cover this
+  // host rebooting -- the agent is down with it.
+  wal {
+    truncate_frequency = "2h"
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Logs -- same agent, same egress
+//
+// This is where Proxmox actually lives: pvedaemon, pve-firewall, qmeventd,
+// task logs, ZED events, and the kernel's vfio-pci and IOMMU messages.
+// ---------------------------------------------------------------------------
+
+discovery.relabel "journal" {
+  targets = []
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "level"
+  }
+}
+
+loki.source.journal "journald" {
+  forward_to    = [loki.write.toyota.receiver]
+  max_age       = "{{ telemetry_agent_journal_max_age }}"
+  relabel_rules = discovery.relabel.journal.rules
+
+  labels = {
+    job  = "journald",
+    host = "{{ telemetry_agent_host_label }}",
+  }
+}
+
+loki.write "toyota" {
+  external_labels = {
+    host = "{{ telemetry_agent_host_label }}",
+    site = "{{ telemetry_agent_site }}",
+    env  = "{{ telemetry_agent_env }}",
+  }
+
+  endpoint {
+    url = "{{ telemetry_agent_loki_push_url }}"
+    bearer_token_file = "{{ telemetry_agent_credential_dir }}/telemetry-api-key"
+  }
+}

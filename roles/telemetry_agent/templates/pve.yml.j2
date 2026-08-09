@@ -1,0 +1,13 @@
+---
+# Managed by Ansible (roles/telemetry_agent) -- local edits are overwritten.
+#
+# This file is the source of truth for the API token: PVE shows a token's
+# secret once, at creation, so if this file is lost the role revokes the token
+# and mints a new one rather than leaving a live credential nobody holds.
+default:
+  user: "{{ telemetry_agent_pve_api_user }}"
+  token_name: "{{ telemetry_agent_pve_token_name }}"
+  token_value: "{{ telemetry_agent_pve_token_value }}"
+  # PVE serves its API under a self-signed certificate by default and the
+  # exporter connects over loopback, where there is no one to intercept it.
+  verify_ssl: false
