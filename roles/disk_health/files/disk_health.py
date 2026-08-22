@@ -14,7 +14,7 @@ import subprocess
 import sys
 from typing import Dict, List, Optional, Sequence
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 _LOGGER = logging.getLogger("disk_health")
 _DEFAULT_LOG_FILE = "/var/log/disk_health.log"
 _MAIL_FORWARD_CANDIDATES = (
@@ -298,7 +298,11 @@ def inspect_disk(disk: Disk) -> DiskReport:
     health = _parse_health(output)
     self_test = _run(["smartctl", "-l", "selftest", disk.path])
     warnings = _metric_warnings(protocol, metrics)
-    if health.upper() not in ("PASSED", "OK"):
+    # A device that exposes no SMART at all -- USB flash drives behind a bridge
+    # with no SAT passthrough, for instance -- is not a failing device, so it
+    # must not warn. Only a drive that reports a health verdict *and* fails it
+    # does. The report still lists the disk with "SMART not available".
+    if _smart_available(health) and health.upper() not in ("PASSED", "OK"):
         warnings.append(f"Overall SMART health: {health}")
     # smartctl uses bits 3-7 for failing health, prefail/past-threshold
     # attributes, error-log entries, and self-test errors.

@@ -93,6 +93,52 @@ Media and Data Integrity Errors:   2
         )
         self.assertIn("Completed without error", latest)
 
+    def test_disk_without_smart_does_not_warn(self) -> None:
+        # A USB flash drive behind a bridge smartctl cannot talk SAT to. It
+        # reports no health verdict, which is not a fault -- it must not push
+        # the whole report into WARNING.
+        output = (
+            "/dev/sde: Unknown USB bridge [0x154b:0x1007 (0x110)]\n"
+            "Please specify device type with the -d option.\n"
+        )
+        report = self._inspect_with_smartctl_output(
+            disk_health.Disk(path="/dev/sde", model="USB 3.2.2 FD", size_bytes=500),
+            output,
+            returncode=1,
+        )
+        self.assertEqual(report.health, "SMART not available")
+        self.assertEqual(report.warnings, [])
+
+    def test_failing_smart_health_still_warns(self) -> None:
+        report = self._inspect_with_smartctl_output(
+            disk_health.Disk(path="/dev/sda", model="Dying SSD", size_bytes=500),
+            "SMART overall-health self-assessment test result: FAILED!\n",
+            returncode=0,
+        )
+        self.assertEqual(report.warnings, ["Overall SMART health: FAILED!"])
+
+    def _inspect_with_smartctl_output(
+        self,
+        disk: "disk_health.Disk",
+        output: str,
+        returncode: int,
+    ) -> "disk_health.DiskReport":
+        original_run = getattr(disk_health, "_run")
+        setattr(
+            disk_health,
+            "_run",
+            lambda _command: subprocess.CompletedProcess(
+                [],
+                returncode,
+                stdout=output,
+                stderr="",
+            ),
+        )
+        try:
+            return disk_health.inspect_disk(disk)
+        finally:
+            setattr(disk_health, "_run", original_run)
+
     def test_virtual_zvols_are_not_physical_disks(self) -> None:
         devices = {
             "blockdevices": [

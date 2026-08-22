@@ -9,6 +9,9 @@ Every physical disk reported by `lsblk` is checked, excluding loop, zram, device
 - SATA temperature, power-on hours, wear, reallocated sectors, pending sectors, offline-uncorrectable sectors, and UDMA CRC errors;
 - NVMe temperature, available spare, spare threshold, percentage used, data units written, power-on hours, unsafe shutdowns, and media/data-integrity errors.
 
+A device that exposes no SMART data at all -- a USB flash drive behind a bridge with no SAT passthrough, for example -- is still listed, with a health of `SMART not available`, but does not raise a warning and
+is skipped for self-tests. Only a disk that reports a health verdict and fails it, or that trips a metric threshold, counts toward the warning total that sets the `OK`/`WARNING` subject line.
+
 Prometheus SMART collection belongs to the `telemetry_agent` role's upstream `smartctl_exporter`. This role remains responsible for the human-readable report and scheduled self-tests, avoiding a second
 implementation of SMART metric parsing.
 
