@@ -23,6 +23,16 @@ provisioner:
   config_options:
     defaults:
       remote_tmp: /tmp
+      # ansible-core 2.19 made non-boolean `when:` expressions a hard error.
+      # molecule-plugins 23.x -- the newest series compatible with molecule
+      # 6.0.2 -- ships `when: (lookup('env', 'HOME'))` in its own docker
+      # destroy.yml, so every `molecule destroy` fails before it reaches our
+      # code. Upstream fixed it in 25.8.12 with `is truthy`, but that release
+      # requires molecule >= 25.1.0, which is a separate migration.
+      #
+      # Scoped to molecule only; the production ansible.cfg keeps the strict
+      # default. Remove once molecule and molecule-plugins are both upgraded.
+      allow_broken_conditionals: true
   env:
     ANSIBLE_VERBOSITY: 3
   playbooks:
