@@ -18,6 +18,17 @@ vfio_rescan_hook_name: vfio-rescan
 # restart untouched, while the SAS2008 and the Arc do not. Blast radius should
 # match the demonstrated problem.
 #
+# That is measured, not assumed. Re-confirmed 2026-08-11 on the klaus-homelab
+# nas stage 3a rebuild: the guest was destroyed and rebuilt, then put through a
+# force `qm stop`/`qm start` AND a full host reboot. Both Optanes came back
+# present and usable every time while this list left them alone.
+#
+# Resist widening it to "everything passed through". Combined with
+# vfio_rescan_hook_fail_closed below, adding a device that does not need
+# re-enumeration converts a hypothetical rescan failure into a guest that will
+# not start at all — which is strictly worse than the problem it imagines it is
+# solving.
+#
 # Example on `watt` (SAS2008 + Arc A310 + its audio function):
 #   vfio_rescan_hook_pci_ids: ["1000:0072", "8086:56a6", "8086:4f92"]
 vfio_rescan_hook_pci_ids: []
