@@ -1,13 +1,25 @@
 # ZFS
 
-A role that monitors ZFS pool health, capacity, and scrub results on the Proxmox host. It also enables autoexpand, enables autotrim for pools identified as flash-backed, schedules scrubs, and emails alerts when
-a completed scrub repairs data or reports errors.
+A role that monitors ZFS pool health, vdev health, capacity, and scrub results on the Proxmox host. It also enables autoexpand, enables autotrim for pools identified as flash-backed, schedules scrubs, and
+emails alerts when a completed scrub repairs data or reports errors.
 
-Physical-disk SMART and NVMe monitoring is provided by the `disk_health` role.
+Alloy's embedded node exporter reports pool state through `node_zfs_zpool_state`. A separate read-only timer publishes per-vdev state as `proxmox_zfs_vdev_healthy` every five minutes. It reuses the existing
+Python checker in `--metrics-only` mode, which cannot change pool properties or start a scrub.
+
+Physical-disk SMART health and temperature monitoring is provided by the `telemetry_agent` role's upstream `smartctl_exporter`. The `disk_health` role retains only email reports and scheduled self-tests.
 
 ## Requirements
 
-None.
+- `zfs_health_prometheus_file`: node-exporter textfile destination. Default: `/var/lib/node_exporter/textfile_collector/proxmox_zfs_vdev_health.prom`.
+- `zfs_health_metrics_interval`: per-vdev refresh interval. Default: `5m`.
+
+Verify the read-only collector directly:
+
+```bash
+systemctl status zfs_health_metrics.timer
+systemctl start zfs_health_metrics.service
+cat /var/lib/node_exporter/textfile_collector/proxmox_zfs_vdev_health.prom
+```
 
 ## Role Variables
 

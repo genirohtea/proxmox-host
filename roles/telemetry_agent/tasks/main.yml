@@ -14,6 +14,9 @@
     - name: "Install the Proxmox VE exporter"
       ansible.builtin.import_tasks: pve_exporter.yml
 
+    - name: "Install the SMART exporter"
+      ansible.builtin.import_tasks: smartctl_exporter.yml
+
     - name: "Install the Alloy agent"
       ansible.builtin.import_tasks: alloy.yml
 

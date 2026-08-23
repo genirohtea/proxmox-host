@@ -45,7 +45,7 @@ from typing import Any, Dict, List, Mapping, Optional
 import jsonschema  # ty: ignore[unresolved-import]
 import yaml  # ty: ignore[unresolved-import]
 
-VERSION = "2020-08-20-py"
+VERSION = "2020-08-20-py.1"
 
 # Fan mode reported by the "get fan mode" raw command (see below).
 _MODE_TEXT = {0: "Standard", 1: "Full", 2: "Optimal", 4: "HeavyIO"}
@@ -96,6 +96,7 @@ class Settings:
     console: bool
     cpu_log_enable: bool
     cpu_log: str
+    prometheus_file: str
     # Fan.
     zone_cpu: int
     zone_periph: int
@@ -147,6 +148,7 @@ class Settings:
             console=output["console"],
             cpu_log_enable=output["cpu_log_enable"],
             cpu_log=resolve(output["cpu_log"]),
+            prometheus_file=resolve(output["prometheus_file"]),
             zone_cpu=fan["zone_cpu"],
             zone_periph=fan["zone_periph"],
             duty_cpu_min=fan["duty_cpu_min"],
@@ -281,6 +283,7 @@ class FanController:
         self.cpu_scale = settings.cpu_scale
         self.cpu_log = settings.cpu_log
         self.cpu_log_enable = settings.cpu_log_enable
+        self.prometheus_file = settings.prometheus_file
 
         # Alter RPM thresholds to allow some slop (matches the shell script,
         # where bc truncates toward zero at scale 0).
@@ -449,8 +452,70 @@ class FanController:
         self.mode_text = _MODE_TEXT.get(self.mode, "")
 
         self._sdr_text = self._ipmi("sdr")
-        for name in ("FAN1", "FAN2", "FAN3", "FAN4", "FANA"):
+        for name in ("FAN1", "FAN2", "FAN3", "FAN4", "FANA", "FANB"):
             self.fan_rpm[name] = self._fan_rpm_from_sdr(self._sdr_text, name)
+        try:
+            self._write_prometheus_metrics()
+        except OSError as exc:
+            _LOGGER.warning("Could not publish Prometheus fan metrics: %s", exc)
+
+    def _fan_zone(self, name: str) -> str:
+        """Returns the configured controller zone for an IPMI fan sensor."""
+        hardware_zone = 0 if name[-1:].isdigit() else 1
+        if hardware_zone == self.zone_cpu:
+            return "cpu"
+        if hardware_zone == self.zone_periph:
+            return "peripheral"
+        return "unknown"
+
+    def _write_prometheus_metrics(self) -> None:
+        """Atomically publish IPMI fan RPM and duty through node_exporter."""
+        lines = [
+            "# HELP proxmox_ipmi_fan_speed_rpm Current IPMI fan speed in revolutions per minute.",
+            "# TYPE proxmox_ipmi_fan_speed_rpm gauge",
+        ]
+        for fan, rpm in sorted(self.fan_rpm.items()):
+            if rpm is None:
+                continue
+            lines.append(
+                f'proxmox_ipmi_fan_speed_rpm{{fan="{fan}",zone="{self._fan_zone(fan)}"}} {rpm}',
+            )
+
+        lines.extend(
+            [
+                "# HELP proxmox_ipmi_fan_duty_ratio Current configured fan-zone duty ratio.",
+                "# TYPE proxmox_ipmi_fan_duty_ratio gauge",
+            ],
+        )
+        for zone, duty in (
+            ("cpu", self.duty_cpu),
+            ("peripheral", self.duty_periph),
+        ):
+            if duty is not None:
+                lines.append(
+                    f'proxmox_ipmi_fan_duty_ratio{{zone="{zone}"}} {duty / 100:g}',
+                )
+
+        lines.extend(
+            [
+                "# HELP proxmox_ipmi_fan_last_collection_timestamp_seconds Unix timestamp of the last IPMI fan collection.",
+                "# TYPE proxmox_ipmi_fan_last_collection_timestamp_seconds gauge",
+                f"proxmox_ipmi_fan_last_collection_timestamp_seconds {int(time.time())}",
+            ],
+        )
+
+        directory = os.path.dirname(self.prometheus_file) or "."
+        os.makedirs(directory, mode=0o755, exist_ok=True)
+        temporary_path = f"{self.prometheus_file}.{os.getpid()}.tmp"
+        try:
+            with open(temporary_path, "w", encoding="utf-8") as handle:
+                handle.write("\n".join(lines) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_path, self.prometheus_file)
+        finally:
+            if os.path.exists(temporary_path):
+                os.unlink(temporary_path)
 
     def _read_cpu_temp(self) -> int:
         """Returns the current CPU temperature in Celsius."""
@@ -873,11 +938,10 @@ class FanController:
                 f"{self.errc_str:>7} {self.p_str:>6} {self.d_str:>6.6} "
                 f"{self.cpu_temp or 0:>4} {self.mode_text:<7} "
                 f"{self.duty_cpu or 0:>3} {self.duty_periph or 0:>3} "
-                f"{self._fan_display('FANA'):>6} {_MISSING:>5} "
+                f"{self._fan_display('FANA'):>6} {self._fan_display('FANB'):>5} "
                 f"{self._fan_display('FAN1'):>5} {self._fan_display('FAN2'):>5} "
                 f"{self._fan_display('FAN3'):>5} {self._fan_display('FAN4'):>5}"
             )
-            # FANB is not read by the original script; it always shows a placeholder.
             _LOGGER.info(f"{time_str}  {drive_line}{summary}")
 
             self._recover_from_mismatch()

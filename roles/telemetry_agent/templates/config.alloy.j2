@@ -16,7 +16,7 @@
 prometheus.exporter.unix "host" {
   // ZFS gives ARC hit/miss and per-pool I/O. The textfile collector is the
   // seam for the roles that already compute health numbers for email
-  // (zfs_pool_check.py, disk_health.py, spinpid2.py) -- anything they drop in
+  // (zfs_pool_check.py, spinpid2.py) -- anything they drop in
   // the directory below becomes a series without another exporter.
   enable_collectors = ["zfs"]
 
@@ -29,8 +29,21 @@ prometheus.exporter.unix "host" {
   }
 }
 
+// The exporter target arrives with Alloy's integration-specific
+// `job="integrations/unix"`. Toyota's bundled Node Exporter dashboards and
+// alert rules use the conventional `job="node-exporter"`, so normalize the
+// target before scraping rather than forking every downstream consumer.
+discovery.relabel "host_node_exporter" {
+  targets = prometheus.exporter.unix.host.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "node-exporter"
+  }
+}
+
 prometheus.scrape "host" {
-  targets         = prometheus.exporter.unix.host.targets
+  targets         = discovery.relabel.host_node_exporter.output
   forward_to      = [prometheus.remote_write.toyota.receiver]
   scrape_interval = "{{ telemetry_agent_scrape_interval }}"
 }
@@ -56,6 +69,25 @@ prometheus.scrape "pve" {
     "cluster" = ["1"],
     "node"    = ["1"],
   }
+
+  forward_to      = [prometheus.remote_write.toyota.receiver]
+  scrape_interval = "{{ telemetry_agent_scrape_interval }}"
+}
+
+// ---------------------------------------------------------------------------
+// Physical disk SMART metrics
+//
+// smartctl_exporter owns disk metric parsing and discovery. The handcrafted
+// disk-health script remains only for email reports and scheduled self-tests.
+// ---------------------------------------------------------------------------
+
+prometheus.scrape "smartctl" {
+  targets = [
+    {
+      "__address__" = "{{ telemetry_agent_smartctl_exporter_listen }}",
+      "job"         = "smartctl-exporter",
+    },
+  ]
 
   forward_to      = [prometheus.remote_write.toyota.receiver]
   scrape_interval = "{{ telemetry_agent_scrape_interval }}"

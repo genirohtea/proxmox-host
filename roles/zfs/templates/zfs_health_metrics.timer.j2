@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh ZFS vdev health metrics
+
+[Timer]
+OnBootSec=1m
+OnUnitActiveSec={{ zfs_health_metrics_interval }}
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

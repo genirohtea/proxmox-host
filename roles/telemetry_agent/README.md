@@ -13,6 +13,7 @@ none of those properties should instead be polled from Toyota with a Prometheus 
 | ZFS        | `zfs` collector                               | ARC hit/miss and per-pool I/O                             |
 | Scripts    | textfile collector                            | `/var/lib/node_exporter/textfile_collector`               |
 | Proxmox VE | `prometheus-pve-exporter` on `127.0.0.1:9221` | Guests, storages, quorum, and replication                 |
+| Disk SMART | `smartctl_exporter` on `127.0.0.1:9633`       | Health, temperature, wear, errors, and device metadata    |
 | Logs       | `loki.source.journal`                         | Proxmox services, ZED, kernel, vfio-pci, and IOMMU events |
 
 Every signal carries stable `host`, `site`, and `env` labels.
@@ -87,6 +88,7 @@ The exporter token is separate from telemetry ingress. The role creates a `prome
 - `telemetry_agent_bws_api_key_id`: per-host BWS secret ID.
 - `telemetry_agent_alloy_apt_version`: pinned Alloy Debian package version; default `1.18.1-1`.
 - `telemetry_agent_pve_exporter_version`: exporter version; default `3.9.0`.
+- `telemetry_agent_smartctl_exporter_version`: exporter version; default `0.14.0`.
 - `telemetry_agent_scrape_interval`: default `30s`.
 - `telemetry_agent_journal_max_age`: default `12h`.
 - `telemetry_agent_cluster_env` and `telemetry_agent_internal_domain`: build the push hostnames. Override the complete push URLs if routes move.
@@ -94,9 +96,10 @@ The exporter token is separate from telemetry ingress. The role creates a `prome
 ## Verifying
 
 ```bash
-systemctl status alloy prometheus-pve-exporter
+systemctl status alloy prometheus-pve-exporter smartctl_exporter
 curl -s localhost:12345/-/ready
 curl -s 'localhost:9221/pve?target=localhost' | head
+curl -s localhost:9633/metrics | grep -E 'smartctl_device_(smart_status|temperature)'
 journalctl -u alloy -f
 ```
 
@@ -110,10 +113,13 @@ up{host="watt"}
 {job="journald", host="watt"}
 ```
 
-## Textfile follow-up
+## SMART and textfile producers
 
-The textfile directory is created and scraped, but the existing `zfs`, `disk_health`, and `ipmi_fan_control` scripts do not yet write `.prom` files. Each producer should write atomically through a temporary
-file and rename it so Alloy never scrapes a partial metric file.
+The role runs prometheus-community's `smartctl_exporter` on loopback and Alloy scrapes it as `job="smartctl-exporter"`. The exporter owns physical-disk discovery and SMART metric parsing; zvol, loop, zram, and
+device-mapper nodes are excluded. The `disk_health` role is deliberately limited to email reports and scheduled self-tests.
+
+The `zfs` role publishes vdev health every five minutes, while the embedded ZFS collector supplies pool state and performance metrics. The `ipmi_fan_control` role publishes fan RPM and zone duty through the
+node-exporter textfile collector because those BMC readings are outside smartctl_exporter's scope. It writes atomically through a temporary file and rename, so Alloy never scrapes a partial metric file.
 
 ## License
 

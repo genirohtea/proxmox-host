@@ -80,7 +80,11 @@ jobs:
       - name: Set up Python 3.
         uses: actions/setup-python@v6
         with:
-          python-version: '3.x'
+          # Pinned rather than '3.x'. molecule 26.8.0 and molecule-plugins
+          # 26.x declare support only through 3.13, while '3.x' floats onto
+          # whatever the runner ships (3.14 as of this change). ansible-core
+          # 2.21 is fine on 3.14; the molecule packages are the constraint.
+          python-version: '3.13'
 
       - name: Install test dependencies.
         run: pip3 install -r requirements.txt

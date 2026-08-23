@@ -14,14 +14,14 @@ import subprocess
 import sys
 from typing import Dict, List, Optional, Sequence
 
-VERSION = "1.0.0"
+VERSION = "1.1.1"
 _LOGGER = logging.getLogger("disk_health")
 _DEFAULT_LOG_FILE = "/var/log/disk_health.log"
 _MAIL_FORWARD_CANDIDATES = (
     "/usr/libexec/proxmox-mail-forward",
     "/usr/bin/proxmox-mail-forward",
 )
-_EXCLUDED_DEVICE_PREFIXES = ("loop", "zram", "dm-")
+_EXCLUDED_DEVICE_PREFIXES = ("loop", "zram", "dm-", "zd")
 _SUNDAY = 7
 
 _SATA_ATTRIBUTES = {
@@ -141,7 +141,7 @@ def _human_size(size_bytes: int) -> str:
 
 
 def list_physical_disks() -> List[Disk]:
-    """Enumerate physical disks, excluding loop, zram, and device-mapper nodes."""
+    """Enumerate physical disks, excluding virtual and memory-backed devices."""
     result = _run(
         [
             "lsblk",
@@ -252,6 +252,10 @@ def _percent(value: Optional[str]) -> Optional[int]:
     return _integer(value)
 
 
+def _smart_available(health: str) -> bool:
+    return health.upper() != "SMART NOT AVAILABLE"
+
+
 def _metric_warnings(protocol: str, metrics: Dict[str, str]) -> List[str]:
     warnings = []
     if protocol == "NVMe":
@@ -294,7 +298,11 @@ def inspect_disk(disk: Disk) -> DiskReport:
     health = _parse_health(output)
     self_test = _run(["smartctl", "-l", "selftest", disk.path])
     warnings = _metric_warnings(protocol, metrics)
-    if health.upper() not in ("PASSED", "OK"):
+    # A device that exposes no SMART at all -- USB flash drives behind a bridge
+    # with no SAT passthrough, for instance -- is not a failing device, so it
+    # must not warn. Only a drive that reports a health verdict *and* fails it
+    # does. The report still lists the disk with "SMART not available".
+    if _smart_available(health) and health.upper() not in ("PASSED", "OK"):
         warnings.append(f"Overall SMART health: {health}")
     # smartctl uses bits 3-7 for failing health, prefail/past-threshold
     # attributes, error-log entries, and self-test errors.
@@ -421,7 +429,10 @@ def run(config: Config) -> int:
         return 0
 
     reports = [inspect_disk(disk) for disk in disks]
-    test_messages = start_self_tests(disks, config.self_test_type)
+    test_messages = start_self_tests(
+        [report.disk for report in reports if _smart_available(report.health)],
+        config.self_test_type,
+    )
     warning_count = sum(len(report.warnings) for report in reports)
     header = (
         f"Disk health report for {socket.gethostname()} at "

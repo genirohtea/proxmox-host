@@ -17,6 +17,8 @@ output:
   # so turn off after testing.
   cpu_log_enable: false
   cpu_log: ../cpu.log
+  # Atomically scraped by Alloy's embedded node_exporter textfile collector.
+  prometheus_file: /var/lib/node_exporter/textfile_collector/proxmox_ipmi_fans.prom
 
 fan:
   # Supermicro says:
